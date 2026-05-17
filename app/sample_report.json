@@ -1,0 +1,70 @@
+{
+  "org_name": "Love INC Newberg",
+  "domain": "loveincnewberg.org",
+  "opening": "Love INC Newberg is doing genuinely hard, relational work. Coordinating churches, volunteers, and families across a community takes real trust. The site has solid bones, and several things are working well. But a few gaps between what the site communicates and what Love INC is actually doing in Newberg are costing real engagement. Here's what stood out.",
+  "whats_working": [
+    "Donate is clearly labeled in the top navigation and lands on a dedicated page on your own domain, with no jarring redirect to a third-party URL at the moment someone is ready to give.",
+    "Monthly recurring giving is available, which is often overlooked by smaller nonprofits. A reliable base of monthly donors is among the most valuable things an organization can build.",
+    "Phone number, address, and an email newsletter signup are all present. Visitors have multiple low-commitment ways to stay connected before they're ready to donate.",
+    "The site is secure (HTTPS) and loads at a reasonable speed, removing friction before a visitor reads a single word."
+  ],
+  "findings": [
+    {
+      "title": "Your headline leads with the structure, not the people",
+      "body": "The first thing a visitor reads is \"Helping Churches Help People.\" That framing is accurate — it's genuinely how Love INC works — but it asks someone to care about the organizational model before they've connected with the mission. Most people who land on a nonprofit site for the first time are asking one question: does this organization help people like the ones I care about?\n\nLeading with the person being helped, rather than the mechanism, keeps visitors engaged longer and makes the ask feel more personal. This isn't about hiding how Love INC operates. It's about sequencing the story so the human connection comes first.",
+      "upstart_service": {
+        "label": "Websites That Work",
+        "sublabel": "Messaging, story structure & conversion",
+        "icon_key": "websites",
+        "url": "https://heyupstart.com/services/#websites"
+      }
+    },
+    {
+      "title": "The donation page asks before it reminds",
+      "body": "Someone who clicks Donate is your highest-intent visitor in that moment. But when they arrive on the donation page, there's nothing there to affirm the decision they're about to make. No story, no impact number, no brief reminder of what their gift actually does. The Bloomerang form simply appears.\n\nDonors who are already convinced will complete the form anyway. But the ones still deciding, who clicked out of curiosity or because a friend shared a post, need a moment of reconnection right before they enter their card number. Even a single sentence placed above the form, like \"Last year, Love INC connected 340 families in Newberg to the help they needed,\" can measurably improve how many people follow through.",
+      "upstart_service": {
+        "label": "Websites That Work",
+        "sublabel": "Donation page optimization & conversion copy",
+        "icon_key": "websites",
+        "url": "https://heyupstart.com/services/#websites"
+      }
+    },
+    {
+      "title": "No impact numbers means visitors have to take your word for it",
+      "body": "Across every page reviewed, there wasn't a single statistic visible. No families connected, no volunteers mobilized, no years serving the Newberg community. For someone who already knows and trusts Love INC, that's fine. For a first-time visitor deciding whether this organization is worth their $50 or their Saturday morning, it leaves a gap that skepticism fills.\n\nImpact numbers don't have to be dramatic to do their job. Something as simple as \"We connected 340 families to help last year\" shifts how a visitor reads everything else on the page. If the data exists internally, and for an organization doing this work it almost certainly does, surfacing even a handful of numbers is one of the highest-return changes available.",
+      "upstart_service": {
+        "label": "Data Clarity & Insight",
+        "sublabel": "Impact dashboards, outcome tracking & grant reporting",
+        "icon_key": "data",
+        "url": "https://heyupstart.com/services/#data"
+      }
+    },
+    {
+      "title": "Google is writing your first impression, and it's probably not great",
+      "body": "The homepage has no meta description. That's the short sentence that appears beneath your organization's name in every Google search result. When that field is empty, Google pulls whatever text it finds first on the page. Based on what's there, that's likely navigation labels and event details, not anything that captures what Love INC actually does or why someone in Newberg should care.\n\nFor a community organization that depends on local awareness, that search result is often the very first impression a stranger gets. It's also one of the fastest fixes on this list: a single well-written sentence that works around the clock on your behalf.",
+      "upstart_service": {
+        "label": "Websites That Work",
+        "sublabel": "SEO, discoverability & site messaging",
+        "icon_key": "websites",
+        "url": "https://heyupstart.com/services/#websites"
+      }
+    },
+    {
+      "title": "Supporters have no reliable way to stay close between events",
+      "body": "Right now, someone who wants to stay connected to Love INC's work has two options: check the website periodically, or hope something surfaces in a crowded social media feed. Both are passive, and both depend on your supporters doing the work of staying engaged on their own.\n\nOrganizations that build a direct channel to their community, one that reaches people when it matters and not just when the algorithm cooperates, tend to see meaningfully better donor retention and volunteer turnout. A branded app that puts your updates, volunteer opportunities, and donation link one tap away on their phone is exactly the kind of owned channel that keeps that relationship alive between events.",
+      "upstart_service": {
+        "label": "GrovLink — Nonprofit Mobile App",
+        "sublabel": "Branded iOS & Android app from $199/mo",
+        "icon_key": "grovlink",
+        "url": "https://grovlink.com"
+      }
+    }
+  ],
+  "closing": "None of these gaps are structural. Love INC clearly has the community relationships that matter most, and the website has the right pieces in place. But there's real distance between what this organization is doing in Newberg and what a first-time visitor walks away understanding. Closing that gap doesn't require a full redesign. If you'd like to talk through where to start and what it would actually look like, we'd love to spend 30 minutes on it.",
+  "_meta": {
+    "model": "claude-sonnet-4-6",
+    "domain": "loveincnewberg.org",
+    "crawled_at": "2026-05-15T18:09:30Z",
+    "version": 3
+  }
+}

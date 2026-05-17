@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Donor Readiness Audit — {{ org_name }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Arial', 'Helvetica Neue', Helvetica, sans-serif;
+      font-size: 10.5pt;
+      font-weight: 300;
+      line-height: 1.65;
+      color: #2a2a2a;
+      background: #ffffff;
+    }
+
+    .page {
+      width: 100%;
+      min-height: 100vh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ═══════════════════════════════
+       HEADER — two-column brand block
+    ═══════════════════════════════ */
+    .header {
+      display: flex;
+      flex-direction: row;
+      min-height: 1.05in;
+    }
+
+    .header-left {
+      flex: 1;
+      background: #ffffff;
+      padding: 0.2in 0.2in 0.18in 0.2in;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .logo {
+      line-height: 1;
+      margin-bottom: 0;
+    }
+
+    .logo-mark {
+      display: flex;
+      align-items: baseline;
+      gap: 0;
+    }
+
+    .logo-up {
+      font-size: 22pt;
+      font-weight: 900;
+      color: #af1b23;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .logo-start {
+      font-size: 22pt;
+      font-weight: 200;
+      color: #888888;
+      letter-spacing: -0.01em;
+      line-height: 1;
+    }
+
+    .logo-productions {
+      font-size: 7pt;
+      font-weight: 300;
+      color: #aaaaaa;
+      letter-spacing: 0.28em;
+      text-transform: lowercase;
+      margin-top: 1px;
+      padding-left: 1px;
+    }
+
+    .header-report-label {
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: #af1b23;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-top: auto;
+      padding-top: 10px;
+    }
+
+    .header-right {
+      width: 2.8in;
+      background: #ffffff;
+      padding: 0.2in 0.2in;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-end;
+      text-align: right;
+    }
+
+    .org-name {
+      font-size: 15pt;
+      font-weight: 700;
+      color: #1A1828;
+      line-height: 1.25;
+      margin-bottom: 4px;
+    }
+
+    .org-domain {
+      font-size: 10pt;
+      font-weight: 300;
+      color: #555555;
+    }
+
+    .report-date {
+      font-size: 9pt;
+      font-weight: 300;
+      color: #888888;
+      margin-top: 6px;
+    }
+
+    /* ═══════════════════════════════
+       BODY CONTENT
+    ═══════════════════════════════ */
+    .body {
+      flex: 1;
+      padding: 0.25in 0.2in 0.2in 0.2in;
+    }
+
+    .report-title {
+      font-size: 22pt;
+      font-weight: 300;
+      color: #1A1828;
+      line-height: 1.15;
+      margin-bottom: 16px;
+      letter-spacing: -0.01em;
+    }
+
+    .opening {
+      background: #faf9ff;
+      border-left: 3px solid #7868C0;
+      padding: 12px 16px;
+      margin-bottom: 22px;
+      font-size: 10.5pt;
+      font-weight: 300;
+      color: #3a3060;
+      font-style: italic;
+      line-height: 1.65;
+    }
+
+    .section-label {
+      font-size: 11pt;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #af1b23;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #f0ece8;
+    }
+
+    .working-section { margin-bottom: 22px; }
+
+    .working-list { list-style: none; padding: 0; }
+
+    .working-list li {
+      padding: 4px 0 4px 20px;
+      position: relative;
+      font-size: 10pt;
+      font-weight: 300;
+      color: #3a3a3a;
+      line-height: 1.6;
+    }
+
+    .working-list li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: #7868C0;
+      font-weight: 700;
+    }
+
+    .findings-section { margin-bottom: 18px; }
+
+    .finding {
+      margin-bottom: 14px;
+    }
+
+    .finding-inner {
+      padding: 13px 16px 11px 0;
+    }
+
+    .finding-number {
+      font-size: 6.5pt;
+      font-weight: 700;
+      color: #af1b23;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+
+    .finding-title {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+
+    .finding-body {
+      font-size: 10pt;
+      font-weight: 300;
+      color: #444444;
+      line-height: 1.65;
+    }
+
+    .finding-body p + p { margin-top: 7px; }
+
+    /* ── Service Badge ── */
+    .service-badge {
+      display: flex;
+      align-items: center;
+      background: transparent;
+      border-left: 3px solid #af1b23;
+      margin: 0 0 13px 0;
+      padding: 7px 14px 7px 10px;
+      gap: 12px;
+    }
+
+    .service-badge-icon-wrap {
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      background: rgba(120,104,192,0.12);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .service-badge-icon-wrap svg {
+      width: 14px;
+      height: 14px;
+      color: #6B5BB8;
+    }
+
+    .service-badge-text { flex: 1; line-height: 1.3; }
+
+    .service-badge-eyebrow {
+      font-size: 6.5pt;
+      font-weight: 400;
+      color: #6B5BB8;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .service-badge-name {
+      font-size: 9pt;
+      font-weight: 700;
+      color: #1A1828;
+    }
+
+    .service-badge-sub {
+      font-size: 9pt;
+      font-weight: 300;
+      font-style: italic;
+      color: #6B5BB8;
+      text-align: right;
+      flex-shrink: 0;
+      max-width: 2.8in;
+    }
+
+    /* ═══════════════════════════════
+       CLOSING / CTA BLOCK
+    ═══════════════════════════════ */
+    .closing-section {
+      background: #faf9ff;
+      padding: 18px 0.2in;
+    }
+
+    .closing-section .section-label {
+      color: #af1b23;
+      border-bottom-color: #e0daf5;
+    }
+
+    .closing-text {
+      font-size: 10.5pt;
+      font-weight: 300;
+      line-height: 1.65;
+      color: #3a3060;
+      margin-bottom: 14px;
+    }
+
+    .cta-button {
+      display: inline-block;
+      background: #bdf352;
+      color: #1A1828 !important;
+      font-size: 9.5pt;
+      font-weight: 700;
+      padding: 9px 24px;
+      text-decoration: none;
+      letter-spacing: 0.04em;
+      border-radius: 20px;
+    }
+
+    /* Footer is handled by Playwright's footer_template on every page */
+    /* ═══════════════════════════════
+       PRINT / PDF — page break control
+    ═══════════════════════════════ */
+    @media print {
+      * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .finding         { break-inside: avoid; }
+      .service-badge   { break-inside: avoid; }
+      .working-section { break-inside: avoid; }
+      .closing-section { break-inside: avoid; }
+      .opening         { break-inside: avoid; }
+
+      .finding-title   { break-after: avoid; }
+      .section-label   { break-after: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="header">
+    <div class="header-left">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAABdCAYAAAAfdFulAAAAAXNSR0IArs4c6QAAAERlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAABLKADAAQAAAABAAAAXQAAAADXjpg9AAAsB0lEQVR4Ae2dCZwUxdXAu3tmd2EXBBXklGMFQZEF5EairAcg0U9RIfGKovH4NGrMoTGfEo0HROORKKhoPOIRBcQDg2AQEEG5jyAqciOnoLBcC7s73d//DTPD7G5Pd89Mz+zubNfvV9PVVa9evXpV9erVq+oaVXHZTW/R8XjdKB1rGMZgxVA2qIp++8DtGz51uRgPXTXlwKJFi16HtCtNyBveo0ePCSbxXlSGcYA+sIUqNa9YrUAg0Kh3794/VIyP512LB9gJbCBweAzCajiwxyiqUmBo2vv/OTa/gZO8HkxGcOCMjKiFV4mEOLB06dI2ZKwkrBJCZpLJdYGlqOrAcuUYSgO9rtqpXJz3kpEcYGZtRsXaZGTlvEo54oCu6ymdsNwXWIqyrmLNygxdVETPZTgH0KxT2lkznH0ZUb1U9wF/olya2jz/blVXb1c0Q1UMY8ygbesfDuJSiTOMyYSPC+Ee9dNt6zdKeFrzk/oZhv6MqqjteJ2u6OrNg3as/T4E5z1qPgc8gVXz2zDZGqS0DySkYU1r2vYy1VBGK6rRHMM6ywD1oY+b518uNR20de3n2WV1W+uG0ovlYatB29b9UeKnNWmSpxj6BwirbrzWxw9F1L0gaZ7LDA5ompbSzpoZXMrcWsybN+8YardaKmuYmIalatipjHJ06Yoitqt/SWThzpX7eSyUcNip/rrtDV09PvwuT1U1zot+98I1lwPYr3JZDnStuTXwKE+WA36/vw84ElKCnJadGHLVqGSn0nS1Ulw0EfphYwfv5aScqijro2G8cM3lAMbWnlCfVXNr4FHuAgdSrmFbCqz/NM/vP61Z/lJ8EX7ilKbtGgcrFTjwNEcW5kdVcHFxmf+p8PvURq2bTW+Rf/J4ZZgvHDd418ZthqHcz/sRoaUqRbqh/iqczjLzd5SxGb9tatP8keF471kzOODz+VLeWWsGJ2ovlak2uAtnYwqsmY071cMO9QEwoubL2vRSv6o/x1MZtGPHgS+2ruuH0byz+KJt63pftGvVPknDsP5zLUt7U9eN5xs0W/TszAEDIsvOwdvX/dnv849IxXoHDmmtBm9fOzOU52LWh48RboFvqqrKA1Obtb1a0jxXMziQjs5aMzhRO6kcP368T1XV3qmufUSYVCyo1F/ckbhjo+NRjSJnrO5XFF3ZsfbL6HQJq7p+CdpX0PFoX7pmU1teVh+JUZRzNn8rRxzERzkjgjccqSma2LdeC797z+rLAYSVunjx4r7Vl0KPslRzID8/vwtl1Et1OTEFVpmmbfehJkFASPwQMiqfsapMoNiyjODS0VDU0uz9+s7KMBVidGxiqFXRzjCxk0Wne+EjHMDYndWgQQOtffv2h6uKJwsXLjyVHcJyk1tV0eJGuatXr84pKSkxOnXqVOIGvuqIQzZJoCsX26O/rKysJC8v73CXLl0OJEFrWkwC6szmJzcqMcqehVDRctYZinH74G3rPxPCOarwAHan+wiKNNmDILqI81azJe2jE9oWKD6jr6b5Vg/csnYmAEHblHyGE8gxWM4Zx+kB/+QhO9csFXhxHzVt08anqecGAsr3dXa0nlKozCqT+MnNm+dm6znTEVrBWRoalvoOqYXn7V5XNLVly+PUsqyxpJ0PFRuVgPprzm7NkHy1yS1ZsqQ5nWsAdRbfAy+TQiN8Hby4Q3iZHORcm2xwLEbzmbZ//37527BhwyqRSwQqoAAAAGElFTkSuQmCC" style="height:70px;width:auto;display:block;align-self:flex-start;">
+      <div class="header-report-label">Technology that serves your mission.</div>
+    </div>
+    <div class="header-right">
+      <div class="org-name">{{ org_name }}</div>
+      <div class="org-domain">{{ domain }}</div>
+      <div class="report-date">{{ report_date }}</div>
+    </div>
+  </div>
+
+  <!-- ── Body ── -->
+  <div class="body">
+
+    <!-- Report Title -->
+    <h1 class="report-title">Donor Readiness Audit</h1>
+
+    <!-- Opening -->
+    <div class="opening">{{ opening }}</div>
+
+    <!-- What's Working -->
+    <div class="working-section">
+      <div class="section-label">What's Working</div>
+      <ul class="working-list">
+        {% for item in whats_working %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Findings -->
+    <div class="findings-section">
+      <div class="section-label">Observations &amp; Opportunities</div>
+
+      {% set icons = {
+        'websites': '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M8 1.8C8 1.8 5.8 4.5 5.8 8s2.2 6.2 2.2 6.2S10.2 11.5 10.2 8 8 1.8 8 1.8z"/><path d="M1.8 8h12.4M2.5 5.5h11M2.5 10.5h11"/></svg>',
+        'data': '<svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><rect x="1.5" y="8.5" width="3" height="6" rx="0.4"/><rect x="6.5" y="5" width="3" height="9.5" rx="0.4"/><rect x="11.5" y="1.5" width="3" height="13" rx="0.4"/></svg>',
+        'grovlink': '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.3"><rect x="3.5" y="1" width="9" height="14" rx="2"/><line x1="3.5" y1="3.5" x2="12.5" y2="3.5"/><line x1="3.5" y1="11.5" x2="12.5" y2="11.5"/><circle cx="8" cy="13" r="0.7" fill="currentColor" stroke="none"/></svg>',
+        'workflows': '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="8" cy="8" r="2.2"/><line x1="8" y1="1.5" x2="8" y2="3.8"/><line x1="8" y1="12.2" x2="8" y2="14.5"/><line x1="1.5" y1="8" x2="3.8" y2="8"/><line x1="12.2" y1="8" x2="14.5" y2="8"/><line x1="3.4" y1="3.4" x2="5" y2="5"/><line x1="11" y1="11" x2="12.6" y2="12.6"/><line x1="12.6" y1="3.4" x2="11" y2="5"/><line x1="5" y1="11" x2="3.4" y2="12.6"/></svg>',
+        'custom_apps': '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4.5,3.5 1,8 4.5,12.5"/><polyline points="11.5,3.5 15,8 11.5,12.5"/><line x1="9.5" y1="2" x2="6.5" y2="14"/></svg>',
+        'accessibility': '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="8" cy="2.8" r="1.6" fill="currentColor" stroke="none"/><path d="M4.5 6.5h7"/><path d="M8 5v4.5"/><path d="M8 9.5l-2.5 4"/><path d="M8 9.5l2.5 4"/></svg>',
+        'security': '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5L2.5 4v3.8c0 3.2 2.4 5.6 5.5 6.2 3.1-.6 5.5-3 5.5-6.2V4L8 1.5z"/><polyline points="5.5,8 7,9.5 10.5,6"/></svg>',
+        'staff': '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="6" cy="4.5" r="2.2"/><path d="M1.5 14c0-2.5 2.1-4 4.5-4s4.5 1.5 4.5 4"/><circle cx="12" cy="5" r="1.7"/><path d="M14.5 13.5c0-1.9-1.3-3.1-3-3.5"/></svg>'
+      } %}
+
+      {% for finding in findings %}
+      <div class="finding">
+        <div class="finding-inner">
+          <div class="finding-number">Finding {{ loop.index }}</div>
+          <div class="finding-title">{{ finding.title }}</div>
+          <div class="finding-body">
+            {% for para in finding.body.split('\n\n') %}
+            <p>{{ para }}</p>
+            {% endfor %}
+          </div>
+        </div>
+        {% if finding.upstart_service %}
+        <div class="service-badge">
+          <div class="service-badge-icon-wrap">
+            {{ icons.get(finding.upstart_service.icon_key, icons.websites) | safe }}
+          </div>
+          <div class="service-badge-text">
+            <div class="service-badge-eyebrow">UpStart can address this</div>
+            <div class="service-badge-name">{{ finding.upstart_service.label }}</div>
+          </div>
+          {% if finding.upstart_service.sublabel %}
+          <div class="service-badge-sub">{{ finding.upstart_service.sublabel }}</div>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+  </div><!-- /body -->
+
+  <!-- ── Closing / CTA ── -->
+  <div class="closing-section">
+    <div class="section-label">Next Steps</div>
+    <div class="closing-text">{{ closing }}</div>
+    <a class="cta-button" href="https://heyupstart.com/book-discovery-chat/">
+      Book a Free Discovery Chat →
+    </a>
+  </div>
+
+</div>
+</body>
+</html>
