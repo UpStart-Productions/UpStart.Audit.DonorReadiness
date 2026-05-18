@@ -1,7 +1,8 @@
 # Donor Readiness Audit — Application Container
 #
 # Build:  docker build -t donor-audit .
-# Run:    docker run --rm -e ANTHROPIC_API_KEY=sk-ant-... donor-audit https://example-nonprofit.org
+# Local:  docker run --rm --entrypoint python -e ANTHROPIC_API_KEY=sk-ant-... donor-audit main.py https://example-nonprofit.org
+# Lambda: entrypoint runs awslambdaric with handler main.lambda_handler
 
 FROM python:3.11-slim
 
@@ -33,8 +34,10 @@ WORKDIR /app
 COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright and its Chromium browser
-RUN playwright install chromium
+# Install Playwright and its Chromium browser to a fixed path
+# (Lambda runs as a different user than the build user, so ~/.cache won't work)
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN playwright install chromium && chmod -R 755 /ms-playwright
 
 # Copy application code
 COPY app/ .
@@ -42,4 +45,6 @@ COPY app/ .
 # Reports output directory
 RUN mkdir -p /app/reports
 
-ENTRYPOINT ["python", "main.py"]
+# Lambda runtime interface — CMD specifies the handler (module.function)
+ENTRYPOINT ["/usr/local/bin/python", "-m", "awslambdaric"]
+CMD ["main.lambda_handler"]

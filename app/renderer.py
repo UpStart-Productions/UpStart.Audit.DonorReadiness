@@ -53,7 +53,15 @@ def render_pdf(report: dict, output_path: str) -> str:
     abs_output = os.path.abspath(output_path)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--single-process',
+            ]
+        )
         page = browser.new_page()
         page.goto(f'file://{tmp_html}', wait_until='networkidle')
         page.wait_for_timeout(500)
