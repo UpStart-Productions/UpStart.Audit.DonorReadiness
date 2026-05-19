@@ -7,7 +7,6 @@ on:
 env:
   ECR_REPOSITORY: donor-audit
   LAMBDA_FUNCTION: donor-readiness-audit
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   deploy:
@@ -15,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
