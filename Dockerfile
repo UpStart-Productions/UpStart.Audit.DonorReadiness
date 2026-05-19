@@ -4,7 +4,7 @@
 # Local:  docker run --rm --entrypoint python -e ANTHROPIC_API_KEY=sk-ant-... donor-audit main.py https://example-nonprofit.org
 # Lambda: entrypoint runs awslambdaric with handler main.lambda_handler
 
-FROM python:3.11-slim
+FROM --platform=linux/arm64 python:3.11-slim
 
 # Install system dependencies for Playwright/Chromium
 RUN apt-get update && apt-get install -y \
