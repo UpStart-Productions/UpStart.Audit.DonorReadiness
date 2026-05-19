@@ -125,6 +125,8 @@ def lambda_handler(event, context):
     AWS Lambda entrypoint.
     Expects event body: { "url": "...", "email": "..." }
     """
+    t_start = time.time()
+    url = ''
     try:
         # API Gateway passes the body as a JSON string; direct invocations pass a dict
         body = event
@@ -139,10 +141,15 @@ def lambda_handler(event, context):
         if not email:
             return {'statusCode': 400, 'body': json.dumps({'error': 'email is required'})}
 
+        print(json.dumps({'event': 'AUDIT_STARTED', 'url': url, 'email': email}))
+
         result   = run_audit(url, output_dir='/tmp')
         org_name = result['report'].get('org_name', 'Your Organization')
 
         send_report_email(email, org_name, result['pdf_path'])
+
+        elapsed = round(time.time() - t_start, 1)
+        print(json.dumps({'event': 'AUDIT_COMPLETE', 'url': url, 'org': org_name, 'duration_s': elapsed}))
 
         return {
             'statusCode': 200,
@@ -150,6 +157,8 @@ def lambda_handler(event, context):
         }
 
     except Exception as e:
+        elapsed = round(time.time() - t_start, 1)
+        print(json.dumps({'event': 'AUDIT_FAILED', 'url': url, 'error': str(e), 'duration_s': elapsed}))
         print(f'[lambda_handler] ERROR: {e}', file=sys.stderr)
         raise  # Let Lambda log the full traceback
 
