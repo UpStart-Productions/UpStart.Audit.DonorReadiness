@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 env:
-  ECR_REPOSITORY: donor-audit
+  ECR_REPOSITORY: upstart/donor-readiness-audit
   LAMBDA_FUNCTION: donor-readiness-audit
 
 jobs:
