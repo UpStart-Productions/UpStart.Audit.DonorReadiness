@@ -7,6 +7,7 @@ on:
 env:
   ECR_REPOSITORY: donor-audit
   LAMBDA_FUNCTION: donor-readiness-audit
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   deploy:
