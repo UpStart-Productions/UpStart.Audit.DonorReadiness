@@ -77,6 +77,14 @@ IMPACT_URL    = re.compile(r'/(impact|outcome|result|annual.?report|hope.?report
 NEWSLETTER_URL = re.compile(r'/(newsletter|sign.?up|subscribe|email.?list)', re.I)
 CONTACT_URL   = re.compile(r'/(contact|reach|connect|location)', re.I)
 
+# Downloadable file extensions — links matching this are collected as signals
+# rather than navigated to (Playwright raises "Download is starting" on file URLs)
+FILE_EXT_PATTERN = re.compile(
+    r'\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|mov|mp4|mp3|wav|avi|wmv|'
+    r'jpg|jpeg|png|gif|svg|csv|json|xml)$',
+    re.I
+)
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -138,6 +146,7 @@ def discover_all_links(page, base_url: str) -> list:
 
     seen = set()
     links = []
+    file_links = []
     for link in raw_links:
         href = link.get('href', '')
         if not href:
@@ -147,6 +156,16 @@ def discover_all_links(page, base_url: str) -> list:
             continue
         # Only same-domain links
         if not same_domain(href, base_url):
+            continue
+        # Collect downloadable file links separately — don't navigate to them
+        # (Playwright raises "Download is starting" when hitting file URLs directly)
+        if FILE_EXT_PATTERN.search(href):
+            if href not in seen:
+                seen.add(href)
+                file_links.append({
+                    'href': href,
+                    'text': link.get('text', ''),
+                })
             continue
         # Skip fragment-only links (modal triggers, anchor scrolls)
         parsed = urlparse(href)
@@ -168,7 +187,7 @@ def discover_all_links(page, base_url: str) -> list:
             'in_nav': link.get('inNav', False),
         })
 
-    return links
+    return links, file_links
 
 
 # ── Phase 2: Categorize and select pages ─────────────────────────────────────
@@ -209,6 +228,61 @@ def categorize_links(links: list) -> dict:
             categories['other'].append(link)
 
     return categories
+
+
+def categorize_file_links(file_links: list) -> list:
+    """
+    Annotate each collected file link with extension, file_type, and category.
+    Returns a list of dicts suitable for inclusion in signals['file_links'].
+    """
+    type_map = {
+        'pdf': 'document', 'doc': 'document', 'docx': 'document',
+        'xls': 'spreadsheet', 'xlsx': 'spreadsheet', 'csv': 'spreadsheet',
+        'ppt': 'presentation', 'pptx': 'presentation',
+        'jpg': 'image', 'jpeg': 'image', 'png': 'image', 'gif': 'image', 'svg': 'image',
+        'mp4': 'video', 'mov': 'video', 'avi': 'video', 'wmv': 'video',
+        'mp3': 'audio', 'wav': 'audio',
+        'zip': 'archive',
+    }
+
+    categorized = []
+    for link in file_links:
+        href = link['href']
+        text = link.get('text', '') or ''
+
+        ext_match = FILE_EXT_PATTERN.search(href)
+        ext = ext_match.group(1).lower() if ext_match else ''
+        file_type = type_map.get(ext, 'other')
+
+        # Categorize by URL path and link text (same signals as categorize_links)
+        if DONATE_URL.search(href) or DONATE_PATTERNS.search(text):
+            category = 'donate'
+        elif (VOLUNTEER_URL.search(href) or VOLUNTEER_PATTERNS.search(text)
+              or re.search(r'(application|apply)', href, re.I)
+              or re.search(r'\b(application|apply)\b', text, re.I)):
+            category = 'volunteer'
+        elif (IMPACT_URL.search(href) or re.search(
+                r'\b(impact|outcomes|results|report|financials|data|stories|numbers|annual)\b',
+                text, re.I)):
+            category = 'impact'
+        elif ABOUT_URL.search(href) or re.search(
+                r'\b(about|mission|team|board|staff|history|foundation|leadership)\b', text, re.I):
+            category = 'about'
+        elif NEWSLETTER_URL.search(href) or re.search(
+                r'\b(newsletter|sign.?up|subscribe)\b', text, re.I):
+            category = 'newsletter'
+        else:
+            category = 'other'
+
+        categorized.append({
+            'href':      href,
+            'text':      text,
+            'extension': ext,
+            'file_type': file_type,
+            'category':  category,
+        })
+
+    return categorized
 
 
 def select_pages_to_crawl(categories: dict, max_pages: int = 11) -> list:
@@ -258,6 +332,10 @@ def load_page(page, url: str, timeout: int = 20000) -> bool:
         return True
     except PlaywrightTimeout:
         print(f'[crawl] Timeout loading {url}', file=sys.stderr)
+        return False
+    except Exception as e:
+        # Catches "Download is starting" and other non-timeout navigation errors
+        print(f'[crawl] Skipping {url} — {e}', file=sys.stderr)
         return False
 
 
@@ -518,16 +596,17 @@ def crawl(start_url: str) -> dict:
     domain    = urlparse(start_url).netloc
 
     signals = {
-        'domain':      domain,
-        'start_url':   start_url,
-        'crawled_at':  time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-        'https':       start_url.startswith('https://'),
-        'pages':       {},
-        'donate_page': {},
+        'domain':         domain,
+        'start_url':      start_url,
+        'crawled_at':     time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        'https':          start_url.startswith('https://'),
+        'pages':          {},
+        'donate_page':    {},
         'volunteer_page': {},
-        'navigation':  {},
-        'mobile':      {},
-        'trust':       {},
+        'navigation':     {},
+        'mobile':         {},
+        'trust':          {},
+        'file_links':     [],
     }
 
     with sync_playwright() as p:
@@ -586,12 +665,14 @@ def crawl(start_url: str) -> dict:
         homepage_src = page.content()
 
         # ── Full nav discovery ─────────────────────────────────────────────
-        all_links     = discover_all_links(page, start_url)
+        all_links, raw_file_links = discover_all_links(page, start_url)
         categories    = categorize_links(all_links)
+        signals['file_links'] = categorize_file_links(raw_file_links)
         pages_to_crawl = select_pages_to_crawl(categories, max_pages=11)
 
         print(
-            f'[crawl] Discovered {len(all_links)} internal links — '
+            f'[crawl] Discovered {len(all_links)} internal links, '
+            f'{len(raw_file_links)} file links — '
             + ', '.join(f'{k}:{len(v)}' for k, v in categories.items() if v),
             file=sys.stderr
         )

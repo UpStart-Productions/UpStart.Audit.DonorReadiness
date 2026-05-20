@@ -184,6 +184,13 @@ CRITICAL RULES:
 - Never use em dashes (—). Use a period, comma, or rewrite the sentence instead.
 - Raw page excerpts are provided at the end of the briefing. Use them to verify any content-dependent claims. If a structured signal contradicts what you can read in the raw text, trust the raw text. Do not claim something is absent if the raw text shows otherwise.
 - Be skeptical of impact stats that are 4-digit numbers in the range 2000-2035 — they are very likely years, phone number fragments, or hours-of-operation labels rather than meaningful statistics. Verify against the raw homepage text before treating them as evidence of an org's work.
+- Downloadable file links are listed at the end of the briefing. Reason about them by category and type, using these assumptions:
+  * 'volunteer' category, document (.pdf/.doc/.docx): High friction. The user must download a form, fill it out by hand, and mail or email it back. Flag this as a volunteer acquisition barrier — it's a meaningful finding.
+  * 'impact' category, document or spreadsheet: Generally positive (annual reports, outcome data). Mention briefly if relevant — e.g., "they publish impact data" is a trust signal.
+  * 'impact' category, spreadsheet (.xls/.xlsx): Data transparency is good, but raw spreadsheets are inaccessible to most donors. Could note that interactive dashboards would tell the story better.
+  * 'donate' category, any file: Flag as potential confusion — a donate link that leads to a download is a friction moment.
+  * Video files (.mp4/.mov): Generally positive for storytelling. Not worth a finding on their own.
+  * Do not manufacture findings from file links alone — use them as supporting evidence for findings grounded in the broader signals.
 """
 
 
@@ -281,6 +288,19 @@ def build_user_message(signals: dict) -> str:
     else:
         vol_desc = "No volunteer page or signup path was found."
 
+    # ── File links section ──
+    file_links = signals.get('file_links', [])
+    if file_links:
+        fl_lines = []
+        for fl in file_links[:25]:
+            label = fl.get('text') or '(no link text)'
+            fl_lines.append(
+                f"  [{fl['category'].upper()}] .{fl['extension']} — {label} — {fl['href']}"
+            )
+        file_links_block = '\n'.join(fl_lines)
+    else:
+        file_links_block = '(none found)'
+
     briefing = f"""
 SITE: {signals.get('domain', 'unknown')}
 CRAWLED: {signals.get('crawled_at', '')}
@@ -320,6 +340,10 @@ Donate CTA visible on phone without scrolling: {yn(mobile.get('donate_cta_above_
 Volunteer page URL found: {nav.get('volunteer', 'none')}
 About page found: {yn(bool(nav.get('about')))}
 
+--- DOWNLOADABLE FILE LINKS FOUND ---
+Files linked from the site (not visited — treat as signals, not confirmed content):
+{{file_links_section}}
+
 --- RAW PAGE CONTENT ---
 The excerpts below are unprocessed text from key pages. Use them to verify
 content-dependent claims — especially impact stats, volunteer role descriptions,
@@ -345,6 +369,7 @@ DONATE PAGE (first 1000 chars):
         homepage_raw=hp_raw,
         volunteer_raw=vol_raw,
         donate_raw=don_raw,
+        file_links_section=file_links_block,
     )
 
     return (
