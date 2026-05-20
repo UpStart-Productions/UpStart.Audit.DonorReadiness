@@ -138,8 +138,11 @@ Service options and their icon_key values:
 - "Staff Support & Placement" | icon_key: "staff" | url: "https://heyupstart.com/services/#staff"
   Use for: gaps that suggest the org lacks technical staff capacity to execute
 
-The "sublabel" field is optional — only include it for GrovLink (to surface the price)
-or when a meaningful short descriptor adds clarity. Leave it as "" for other services.
+The "sublabel" field must always be a short (4-8 word) phrase specific to this finding.
+For GrovLink, always use "Branded iOS & Android app from $199/mo". For all other services,
+write a phrase that connects the service to what was found in this specific finding — e.g.,
+"Donation page copy & conversion", "Impact dashboards & outcome tracking", "Homepage messaging
+& story structure", "Volunteer portal & intake workflow". Never leave sublabel empty.
 
 OUTPUT FORMAT:
 Return a single valid JSON object with this exact structure. No markdown, no
@@ -179,6 +182,8 @@ CRITICAL RULES:
 - Never use the words: "robust", "seamlessly", "leverage", "utilize", "synergy",
   "best practices", "state-of-the-art", "game-changer", "revolutionary"
 - Never use em dashes (—). Use a period, comma, or rewrite the sentence instead.
+- Raw page excerpts are provided at the end of the briefing. Use them to verify any content-dependent claims. If a structured signal contradicts what you can read in the raw text, trust the raw text. Do not claim something is absent if the raw text shows otherwise.
+- Be skeptical of impact stats that are 4-digit numbers in the range 2000-2035 — they are very likely years, phone number fragments, or hours-of-operation labels rather than meaningful statistics. Verify against the raw homepage text before treating them as evidence of an org's work.
 """
 
 
@@ -314,7 +319,33 @@ Donate CTA visible on phone without scrolling: {yn(mobile.get('donate_cta_above_
 --- ADDITIONAL CONTEXT ---
 Volunteer page URL found: {nav.get('volunteer', 'none')}
 About page found: {yn(bool(nav.get('about')))}
+
+--- RAW PAGE CONTENT ---
+The excerpts below are unprocessed text from key pages. Use them to verify
+content-dependent claims — especially impact stats, volunteer role descriptions,
+and trust signals. If a signal above conflicts with what you read here, trust
+what you read here.
+
+HOMEPAGE (first 1500 chars):
+{{homepage_raw}}
+
+VOLUNTEER PAGE (first 1500 chars):
+{{volunteer_raw}}
+
+DONATE PAGE (first 1000 chars):
+{{donate_raw}}
 """.strip()
+
+    # ── Inject raw page text ──
+    hp_raw  = hp.get('raw_text', '')[:1500] or '(not available)'
+    vol_raw = volunteer.get('raw_text', '')[:1500] or '(not available)'
+    don_raw = donate.get('raw_text', '')[:1000] or '(not available)'
+
+    briefing = briefing.format(
+        homepage_raw=hp_raw,
+        volunteer_raw=vol_raw,
+        donate_raw=don_raw,
+    )
 
     return (
         f"Please write the Donor Readiness audit memo for this nonprofit website.\n\n"

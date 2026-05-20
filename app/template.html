@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Donor Readiness Audit — {{ org_name }}</title>
+  <title>Donor Engagement Snapshot — {{ org_name }}</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -311,6 +311,13 @@
       border-radius: 20px;
     }
 
+
+    .cta-print-url {
+      font-size: 8pt;
+      color: #8878c3;
+      margin-top: 5px;
+      letter-spacing: 0.02em;
+    }
     /* Footer is handled by Playwright's footer_template on every page */
     /* ═══════════════════════════════
        PRINT / PDF — page break control
@@ -357,7 +364,7 @@
   <div class="body">
 
     <!-- Report Title -->
-    <h1 class="report-title">Donor Readiness Audit</h1>
+    <h1 class="report-title">Donor Engagement Snapshot</h1>
 
     <!-- Opening -->
     <div class="opening">{{ opening }}</div>
@@ -425,6 +432,7 @@
     <a class="cta-button" href="https://heyupstart.com/book-discovery-chat/">
       Book a Free Discovery Chat →
     </a>
+    <p class="cta-print-url">heyupstart.com/chat</p>
   </div>
 
 

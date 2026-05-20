@@ -281,6 +281,8 @@ def extract_page_signals(page, url: str, role: str) -> dict:
     sig['body_preview'] = ' '.join(body_text)[:1000] if body_text else ''
 
     full_text = page.inner_text('body') if page.query_selector('body') else ''
+    # Store cleaned raw text so Claude can verify content-dependent claims
+    sig['raw_text'] = ' '.join(full_text.split())[:2000]
     sig['impact_stats'] = list(set(IMPACT_PATTERNS.findall(full_text)))[:10]
 
     # Trust signals
@@ -420,6 +422,15 @@ def extract_volunteer_signals(page, url: str) -> dict:
     )
     sig['volunteer_roles_listed']     = list(set(role_indicators))
     sig['has_specific_volunteer_roles'] = len(role_indicators) > 0
+
+    # Capture raw list item text so Claude can read role descriptions directly.
+    # This catches cases where roles are described in prose lists but don't
+    # match the specific role-name regex patterns above.
+    list_items = page.eval_on_selector_all(
+        'li',
+        'els => els.map(e => e.innerText.trim()).filter(t => t.length > 5 && t.length < 300)'
+    )
+    sig['volunteer_list_content'] = list_items[:30]
 
     return sig
 
