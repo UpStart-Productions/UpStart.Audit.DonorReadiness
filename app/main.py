@@ -38,10 +38,11 @@ def safe_filename(s: str) -> str:
 
 # ── Email ──────────────────────────────────────────────────────────────────────
 
-# Logo hosted on heyupstart.com — swap for a higher-res PNG if available
-LOGO_URL      = 'https://heyupstart.com/favicon.png'
+FAVICON_URL   = 'https://heyupstart.com/favicon.png'
+DARK_LOGO_URL = 'https://heyupstart.com/images/upstart-logo-dark.png'
 BOOKING_URL   = 'https://heyupstart.com/chat'
 UPSTART_COLOR = '#F5C400'   # UpStart gold/yellow
+LINK_COLOR    = '#1a73e8'   # Blue for signature links
 
 
 def _build_plain_text(org_name: str, first_name: str = '') -> str:
@@ -81,11 +82,22 @@ def _build_html(org_name: str, first_name: str = '') -> str:
                style="max-width:560px;width:100%;background:#ffffff;border-radius:6px;
                       box-shadow:0 1px 4px rgba(0,0,0,0.08);">
 
-          <!-- Header bar -->
+          <!-- Header: purple gradient tagline -->
           <tr>
-            <td style="background:{UPSTART_COLOR};border-radius:6px 6px 0 0;padding:20px 36px;">
-              <img src="{LOGO_URL}" alt="UpStart Productions" height="40"
-                   style="display:block;height:40px;border:0;">
+            <td style="background:linear-gradient(135deg,#7B6BB5 0%,#5A4A99 100%);
+                       border-radius:6px 6px 0 0;padding:14px 36px;">
+              <span style="font-family:Arial,Helvetica,sans-serif;font-size:13px;
+                           font-weight:700;color:#ffffff;letter-spacing:0.01em;">
+                Technology that serves your mission
+              </span>
+            </td>
+          </tr>
+
+          <!-- Logo lockup on white -->
+          <tr>
+            <td style="padding:20px 36px 8px;background:#ffffff;">
+              <img src="{DARK_LOGO_URL}" alt="UpStart Productions" height="52"
+                   style="display:block;height:52px;border:0;">
             </td>
           </tr>
 
@@ -137,7 +149,7 @@ def _build_html(org_name: str, first_name: str = '') -> str:
                 <tr>
                   <td style="padding-right:18px;border-right:2px solid #e0e0e0;
                              vertical-align:middle;">
-                    <img src="{LOGO_URL}" alt="up" height="44"
+                    <img src="{FAVICON_URL}" alt="up" height="44"
                          style="display:block;height:44px;border:0;">
                   </td>
                   <td style="padding-left:18px;vertical-align:middle;">
@@ -152,11 +164,11 @@ def _build_html(org_name: str, first_name: str = '') -> str:
                     </p>
                     <p style="margin:5px 0 0;font-size:13px;">
                       <a href="https://heyupstart.com"
-                         style="color:{UPSTART_COLOR};text-decoration:none;">
+                         style="color:{LINK_COLOR};text-decoration:none;">
                         heyupstart.com</a>
                       &nbsp;&nbsp;|&nbsp;&nbsp;
                       <a href="mailto:jeff@heyupstart.com"
-                         style="color:{UPSTART_COLOR};text-decoration:none;">
+                         style="color:{LINK_COLOR};text-decoration:none;">
                         jeff@heyupstart.com</a>
                     </p>
                   </td>
