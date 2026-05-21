@@ -21,6 +21,7 @@ import time
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formataddr
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -37,46 +38,180 @@ def safe_filename(s: str) -> str:
 
 # ── Email ──────────────────────────────────────────────────────────────────────
 
-def send_report_email(to_email: str, org_name: str, pdf_path: str) -> None:
-    """Send the PDF report to the visitor via SES."""
-    import boto3
+# Logo hosted on heyupstart.com — swap for a higher-res PNG if available
+LOGO_URL      = 'https://heyupstart.com/favicon.png'
+BOOKING_URL   = 'https://heyupstart.com/chat'
+UPSTART_COLOR = '#F5C400'   # UpStart gold/yellow
 
-    from_email = os.environ.get('FROM_EMAIL', 'audits@heyupstart.com')
-    region = os.environ.get('AWS_REGION', 'us-east-1')
 
-    msg = MIMEMultipart()
-    msg['Subject'] = f'Your Donor Readiness Audit — {org_name}'
-    msg['From'] = from_email
-    msg['To'] = to_email
-
-    body_text = (
-        f"Hi,\n\n"
-        f"Your Donor Readiness Audit for {org_name} is attached.\n\n"
-        f"It's a quick read — a few things working in your favor, and a handful of specific gaps "
-        f"that are costing you real engagement.\n\n"
-        f"If you'd like to talk through any of it, just reply here or book time at heyupstart.com.\n\n"
+def _build_plain_text(org_name: str, first_name: str = '') -> str:
+    greeting = f"Hi {first_name}," if first_name else "Hi,"
+    return (
+        f"{greeting}\n\n"
+        f"Your Donor Engagement Snapshot for {org_name} is attached.\n\n"
+        f"It's a quick read — a few things working well on the site, and some specific "
+        f"gaps that are quietly costing you real engagement with donors and volunteers.\n\n"
+        f"If anything in there raises a question, or you'd like to dig into any of it, "
+        f"just reply here. I'm also happy to get on a call.\n\n"
+        f"  {BOOKING_URL}\n\n"
         f"— Jeff\n"
         f"UpStart Productions\n"
         f"heyupstart.com"
     )
-    msg.attach(MIMEText(body_text, 'plain'))
 
+
+def _build_html(org_name: str, first_name: str = '') -> str:
+    greeting = f"Hi {first_name}," if first_name else "Hi,"
+    return f"""\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Your Donor Engagement Snapshot</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+         style="background-color:#f4f4f4;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+
+        <!-- Card -->
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0"
+               style="max-width:560px;width:100%;background:#ffffff;border-radius:6px;
+                      box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+
+          <!-- Header bar -->
+          <tr>
+            <td style="background:{UPSTART_COLOR};border-radius:6px 6px 0 0;padding:20px 36px;">
+              <img src="{LOGO_URL}" alt="UpStart Productions" height="40"
+                   style="display:block;height:40px;border:0;">
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 36px 8px;">
+              <p style="margin:0 0 20px;font-size:16px;line-height:1.65;color:#1a1a1a;">
+                {greeting}
+              </p>
+              <p style="margin:0 0 20px;font-size:16px;line-height:1.65;color:#1a1a1a;">
+                Your <strong>Donor Engagement Snapshot</strong> for
+                <strong>{org_name}</strong> is attached.
+              </p>
+              <p style="margin:0 0 20px;font-size:16px;line-height:1.65;color:#1a1a1a;">
+                It's a quick read — a few things working well on the site, and some specific
+                gaps that are quietly costing you real engagement with donors and volunteers.
+              </p>
+              <p style="margin:0 0 32px;font-size:16px;line-height:1.65;color:#1a1a1a;">
+                If anything raises a question or you'd like to dig into any of it, just
+                reply here. I'm also happy to get on a call.
+              </p>
+
+              <!-- CTA button -->
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background:{UPSTART_COLOR};border-radius:4px;">
+                    <a href="{BOOKING_URL}"
+                       style="display:block;padding:13px 26px;font-size:15px;font-weight:700;
+                              color:#1a1a1a;text-decoration:none;letter-spacing:0.01em;">
+                      Book a Discovery Chat &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Divider -->
+          <tr>
+            <td style="padding:32px 36px 0;">
+              <hr style="border:none;border-top:1px solid #e8e8e8;margin:0;">
+            </td>
+          </tr>
+
+          <!-- Signature -->
+          <tr>
+            <td style="padding:24px 36px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding-right:18px;border-right:2px solid #e0e0e0;
+                             vertical-align:middle;">
+                    <img src="{LOGO_URL}" alt="up" height="44"
+                         style="display:block;height:44px;border:0;">
+                  </td>
+                  <td style="padding-left:18px;vertical-align:middle;">
+                    <p style="margin:0;font-size:15px;font-weight:700;color:#1a1a1a;">
+                      Jeff Denton
+                    </p>
+                    <p style="margin:3px 0 0;font-size:13px;color:#555555;">
+                      Founder, UpStart Productions LLC
+                    </p>
+                    <p style="margin:3px 0 0;font-size:13px;color:#555555;font-style:italic;">
+                      Technology that serves your mission.
+                    </p>
+                    <p style="margin:5px 0 0;font-size:13px;">
+                      <a href="https://heyupstart.com"
+                         style="color:{UPSTART_COLOR};text-decoration:none;">
+                        heyupstart.com</a>
+                      &nbsp;&nbsp;|&nbsp;&nbsp;
+                      <a href="mailto:jeff@heyupstart.com"
+                         style="color:{UPSTART_COLOR};text-decoration:none;">
+                        jeff@heyupstart.com</a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+        </table>
+        <!-- /Card -->
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
+def send_report_email(to_email: str, org_name: str, pdf_path: str, first_name: str = '') -> None:
+    """Send the PDF report to the recipient via SES (HTML + plain-text fallback)."""
+    import boto3
+
+    from_email   = os.environ.get('FROM_EMAIL', 'hello@heyupstart.com')
+    from_name    = os.environ.get('FROM_NAME', 'UpStart Productions')
+    region       = os.environ.get('AWS_REGION', 'us-east-1')
+
+    # Outer envelope: multipart/mixed  (body alternatives + attachment)
+    outer = MIMEMultipart('mixed')
+    outer['Subject'] = f'Your Donor Engagement Snapshot — {org_name}'
+    outer['From']    = formataddr((from_name, from_email))
+    outer['To']      = to_email
+
+    # Inner: multipart/alternative so clients pick the best version they support
+    alt = MIMEMultipart('alternative')
+    alt.attach(MIMEText(_build_plain_text(org_name, first_name), 'plain', 'utf-8'))
+    alt.attach(MIMEText(_build_html(org_name, first_name),       'html',  'utf-8'))
+    outer.attach(alt)
+
+    # PDF attachment
     with open(pdf_path, 'rb') as f:
         pdf_data = f.read()
 
     attachment = MIMEApplication(pdf_data, _subtype='pdf')
-    safe_org = safe_filename(org_name)
+    safe_org   = safe_filename(org_name)
     attachment.add_header(
         'Content-Disposition', 'attachment',
-        filename=f'{safe_org}_Donor_Readiness_Audit.pdf'
+        filename=f'{safe_org}_Donor_Engagement_Snapshot.pdf'
     )
-    msg.attach(attachment)
+    outer.attach(attachment)
 
     ses = boto3.client('ses', region_name=region)
     ses.send_raw_email(
-        Source=from_email,
+        Source=formataddr((from_name, from_email)),
         Destinations=[to_email],
-        RawMessage={'Data': msg.as_string()},
+        RawMessage={'Data': outer.as_string()},
     )
     print(f'[email] Report sent to {to_email}', file=sys.stderr)
 
@@ -133,20 +268,21 @@ def lambda_handler(event, context):
         if 'body' in event:
             body = json.loads(event['body'] or '{}')
 
-        url   = (body.get('url')   or '').strip()
-        email = (body.get('email') or '').strip()
+        url        = (body.get('url')        or '').strip()
+        email      = (body.get('email')      or '').strip()
+        first_name = (body.get('firstName') or '').strip()
 
         if not url:
             return {'statusCode': 400, 'body': json.dumps({'error': 'url is required'})}
         if not email:
             return {'statusCode': 400, 'body': json.dumps({'error': 'email is required'})}
 
-        print(json.dumps({'event': 'AUDIT_STARTED', 'url': url, 'email': email}))
+        print(json.dumps({'event': 'AUDIT_STARTED', 'url': url, 'email': email, 'firstName': first_name}))
 
         result   = run_audit(url, output_dir='/tmp')
         org_name = result['report'].get('org_name', 'Your Organization')
 
-        send_report_email(email, org_name, result['pdf_path'])
+        send_report_email(email, org_name, result['pdf_path'], first_name=first_name)
 
         elapsed = round(time.time() - t_start, 1)
         print(json.dumps({'event': 'AUDIT_COMPLETE', 'url': url, 'org': org_name, 'duration_s': elapsed}))
