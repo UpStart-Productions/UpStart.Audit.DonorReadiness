@@ -27,7 +27,7 @@ from urllib.parse import urlparse
 
 # Local modules
 from crawler import crawl
-from companion import run_seo_audit, run_a11y_audit
+from companion import run_seo_audit, run_a11y_audit, crawl_seo_inline, crawl_a11y_inline
 from prompt import generate_report
 from renderer import render_pdf
 
@@ -252,9 +252,26 @@ def run_audit(url: str, output_dir: str = '/tmp') -> dict:
     signals = crawl(url)
     print(f'[1/3] Done in {time.time()-t0:.1f}s', file=sys.stderr)
 
+    print('[1b/3] SEO companion crawl...', file=sys.stderr)
+    t_seo = time.time()
+    seo_summary = crawl_seo_inline(url)
+    companion_stats = {'seo': seo_summary} if seo_summary else {}
+    print(f'[1b/3] Done in {time.time()-t_seo:.1f}s', file=sys.stderr)
+
+    print('[1c/3] Accessibility companion crawl...', file=sys.stderr)
+    t_a11y = time.time()
+    a11y_summary = crawl_a11y_inline(url)
+    if a11y_summary:
+        companion_stats['a11y'] = a11y_summary
+    print(f'[1c/3] Done in {time.time()-t_a11y:.1f}s', file=sys.stderr)
+
     print('[2/3] Generating report...', file=sys.stderr)
     t1 = time.time()
-    report = generate_report(signals, model=model)
+    report = generate_report(
+        signals,
+        model=model,
+        companion_stats=companion_stats if companion_stats else None,
+    )
     print(f'[2/3] Done in {time.time()-t1:.1f}s', file=sys.stderr)
 
     print('[3/3] Rendering PDF...', file=sys.stderr)

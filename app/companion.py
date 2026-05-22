@@ -248,6 +248,159 @@ def run_a11y_audit(url: str, output_dir: str) -> Optional[dict]:
     }
 
 
+# ── Inline a11y crawl (Lambda-safe, Python Playwright + injected axe-core) ─────
+
+def crawl_a11y_inline(url: str, max_pages: int = 6) -> Optional[dict]:
+    """
+    Run WCAG 2.1 AA checks using Python Playwright + axe-core injected as an
+    init script (bypasses CSP). Uses the same Chromium already in the container.
+    Bundled axe.min.js must sit alongside companion.py in app/.
+    """
+    axe_js = Path(__file__).parent / 'axe.min.js'
+    if not axe_js.exists():
+        print('[companion:a11y] axe.min.js not found — skipping', file=sys.stderr)
+        return None
+
+    try:
+        from urllib.parse import urlparse
+        from playwright.sync_api import sync_playwright
+
+        axe_source = axe_js.read_text(encoding='utf-8')
+
+        start_url = url.rstrip('/')
+        if not start_url.startswith('http'):
+            start_url = 'https://' + start_url
+        base_origin = '{0.scheme}://{0.netloc}'.format(urlparse(start_url))
+
+        visited = set()
+        queue   = [start_url]
+        page_results = []
+
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-dev-shm-usage',
+                      '--disable-gpu', '--single-process'],
+            )
+            # add_init_script runs before page scripts → not blocked by CSP
+            ctx = browser.new_context()
+            ctx.add_init_script(axe_source)
+            pg = ctx.new_page()
+
+            while queue and len(visited) < max_pages:
+                current = queue.pop(0)
+                if current in visited:
+                    continue
+                visited.add(current)
+
+                try:
+                    pg.goto(current, wait_until='networkidle', timeout=30000)
+                    pg.wait_for_timeout(300)
+
+                    violations = pg.evaluate("""
+                        async () => {
+                            const r = await axe.run({
+                                runOnly: { type: 'tag',
+                                           values: ['wcag2a', 'wcag2aa', 'best-practice'] }
+                            });
+                            return r.violations.map(v => ({
+                                id:     v.id,
+                                impact: v.impact,
+                                nodes:  v.nodes.length,
+                            }));
+                        }
+                    """)
+                    page_results.append({'url': current, 'violations': violations})
+
+                    # Discover same-origin links for next iterations
+                    if len(visited) < max_pages:
+                        links = pg.evaluate("""
+                            () => Array.from(document.querySelectorAll('a[href]'))
+                                .map(a => a.href.split('#')[0].replace(/\\/$/, ''))
+                                .filter(h => h.startsWith(window.location.origin))
+                        """)
+                        for link in links:
+                            if link and link not in visited and link not in queue:
+                                queue.append(link)
+
+                except Exception as page_err:
+                    print(f'[companion:a11y] {current}: {page_err}', file=sys.stderr)
+
+            browser.close()
+
+        all_violations = [v for pr in page_results for v in pr.get('violations', [])]
+        summary = {
+            'pages_crawled':     len(page_results),
+            'total_violations':  len(all_violations),
+            'critical':          sum(1 for v in all_violations if v.get('impact') == 'critical'),
+            'serious':           sum(1 for v in all_violations if v.get('impact') == 'serious'),
+            'moderate':          sum(1 for v in all_violations if v.get('impact') == 'moderate'),
+            'unique_issue_types': len({v.get('id') for v in all_violations}),
+        }
+        print(
+            f'[companion:a11y] {summary["pages_crawled"]} pages — '
+            f'{summary["critical"]} critical, {summary["serious"]} serious violations',
+            file=sys.stderr,
+        )
+        return summary
+
+    except Exception as e:
+        print(f'[companion:a11y] Inline crawl failed: {e}', file=sys.stderr)
+        return None
+
+
+# ── Inline SEO crawl (Lambda-safe, no subprocess or Node required) ─────────────
+
+def crawl_seo_inline(url: str) -> Optional[dict]:
+    """
+    Run the SEO crawl in-process using seo_crawl.py's functions directly.
+    Works in Lambda (pure Python + curl). Returns summary stats or None on failure.
+    """
+    try:
+        import urllib.parse
+        import seo_crawl  # bundled alongside companion.py in app/
+
+        base_url = url.rstrip('/')
+        if not base_url.startswith('http'):
+            base_url = 'https://' + base_url
+        parsed = urllib.parse.urlparse(base_url)
+        base_domain = parsed.netloc
+
+        robots_url    = base_url + '/robots.txt'
+        robots_status = seo_crawl.fetch_status(robots_url)
+
+        pages, sitemap_status, _ = seo_crawl.discover_pages(base_url, base_domain)
+        pages = sorted(pages)[:20]
+
+        all_page_data = []
+        for page in pages:
+            html = seo_crawl.fetch(base_url + page)
+            if not html:
+                continue
+            page_data = seo_crawl.extract_page_data(html, base_url + page, base_domain)
+            page_data['path'] = page
+            all_page_data.append(page_data)
+
+        crawl_data = {
+            'base_url':       base_url,
+            'sitemap_status': sitemap_status,
+            'robots_status':  robots_status,
+            'pages':          all_page_data,
+        }
+        summary = _summarize_seo(crawl_data)
+        print(
+            f'[companion:seo] {summary["pages_crawled"]} pages — '
+            f'{summary["missing_meta_description"]} missing meta, '
+            f'{summary["images_missing_alt"]} images without alt',
+            file=sys.stderr,
+        )
+        return summary
+
+    except Exception as e:
+        print(f'[companion:seo] Inline crawl failed: {e}', file=sys.stderr)
+        return None
+
+
 # ── Setup helper ───────────────────────────────────────────────────────────────
 
 def print_setup_instructions():
