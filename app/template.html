@@ -279,6 +279,93 @@
     }
 
     /* ═══════════════════════════════
+       SCORE CARD
+    ═══════════════════════════════ */
+    .score-card {
+      background: #1A1828;
+      border-radius: 3px;
+      padding: 13px 16px;
+      margin-bottom: 22px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .score-overall {
+      flex-shrink: 0;
+      width: 0.78in;
+      text-align: center;
+      border-right: 1px solid rgba(255,255,255,0.1);
+      padding-right: 16px;
+    }
+
+    .score-overall-label {
+      font-size: 5.5pt;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.4);
+      margin-bottom: 2px;
+    }
+
+    .score-overall-grade {
+      font-size: 32pt;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+
+    .score-dimensions {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .score-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      line-height: 1.4;
+    }
+
+    .score-dim-grade {
+      font-size: 7.5pt;
+      font-weight: 900;
+      min-width: 20px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .score-dim-label {
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: rgba(255,255,255,0.82);
+      min-width: 1.4in;
+      flex-shrink: 0;
+    }
+
+    .score-dim-sep {
+      font-size: 7pt;
+      color: rgba(255,255,255,0.2);
+      flex-shrink: 0;
+    }
+
+    .score-dim-note {
+      font-size: 7pt;
+      font-weight: 300;
+      color: rgba(255,255,255,0.42);
+      font-style: italic;
+    }
+
+    /* Grade colours */
+    .grade-a { color: #bdf352; }
+    .grade-b { color: #7dd3fc; }
+    .grade-c { color: #fcd34d; }
+    .grade-d { color: #fb923c; }
+    .grade-f { color: #f87171; }
+
+    /* ═══════════════════════════════
        CLOSING / CTA BLOCK
     ═══════════════════════════════ */
     .closing-section {
@@ -335,6 +422,7 @@
       .working-section { break-inside: avoid; }
       .closing-section { break-inside: avoid; }
       .opening         { break-inside: avoid; }
+      .score-card      { break-inside: avoid; }
 
       /* Keep a finding title with its body */
       .finding-title   { break-after: avoid; }
@@ -368,6 +456,26 @@
 
     <!-- Opening -->
     <div class="opening">{{ opening }}</div>
+
+    <!-- Score Card -->
+    {% if scores %}
+    <div class="score-card">
+      <div class="score-overall">
+        <div class="score-overall-label">Donor Readiness</div>
+        <div class="score-overall-grade grade-{{ scores.overall[0] | lower }}">{{ scores.overall }}</div>
+      </div>
+      <div class="score-dimensions">
+        {% for dim in scores.dimensions %}
+        <div class="score-row">
+          <span class="score-dim-grade grade-{{ dim.grade[0] | lower }}">{{ dim.grade }}</span>
+          <span class="score-dim-label">{{ dim.label }}</span>
+          <span class="score-dim-sep">·</span>
+          <span class="score-dim-note">{{ dim.note }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
 
     <!-- What's Working -->
     <div class="working-section">

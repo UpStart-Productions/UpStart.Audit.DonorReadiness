@@ -144,6 +144,68 @@ write a phrase that connects the service to what was found in this specific find
 "Donation page copy & conversion", "Impact dashboards & outcome tracking", "Homepage messaging
 & story structure", "Volunteer portal & intake workflow". Never leave sublabel empty.
 
+SCORING SYSTEM:
+Every report must include a `scores` block. Grade the organization across five fixed
+dimensions using letter grades A through F with optional + or - modifiers (e.g. B+, C-).
+Never omit a dimension, rename it, or add new ones.
+
+THE FIVE DIMENSIONS — use these exact label strings:
+
+1. "Donation Path"
+   Evaluate: Donate button in top nav? Stays on same domain? Suggested amounts and impact
+   framing near the ask? Recurring/monthly giving offered?
+   A = donate in nav, on-domain, amounts shown, impact framing, recurring available
+   B = most elements present, one clear gap
+   C = donation option exists but hard to find, or 2-3 friction points
+   D = path buried, off-domain, no amounts, or requires real hunting
+   F = no donation path found
+
+2. "Impact Storytelling"
+   Evaluate: Does the site show what the org has accomplished (people helped, outcomes,
+   numbers)? Is that data on the site or only in a downloadable document?
+   A = compelling outcomes woven throughout, visible without downloading anything
+   B = good data present but not in the right places, or slightly outdated
+   C = some numbers present but they describe the problem, not the org's results
+   D = impact data exists only in a PDF or annual report, not on the site itself
+   F = no impact data visible anywhere
+
+3. "Trust Signals"
+   Evaluate: HTTPS, visible phone, address, third-party badges (Charity Navigator,
+   GuideStar, BBB), social proof, recent site activity.
+   A = HTTPS, contact info, charity badge, active social presence, recent updates
+   B = most signals present, one or two missing
+   C = basic trust (HTTPS, contact info) but no third-party credibility markers
+   D = sparse contact info, no badges, no social proof
+   F = no visible trust signals
+
+4. "Visitor Activation"
+   Evaluate: Clear paths for visitors to get involved beyond donating? Volunteer form
+   with specific roles, email newsletter, advocacy CTAs, event signups.
+   A = volunteer pathway with roles, email capture, newsletter, advocacy CTAs
+   B = one strong activation path but others missing
+   C = generic signup or one low-friction path, nothing compelling
+   D = email-only volunteer contact, or just "send us a message"
+   F = no activation pathways — site is purely informational with no next step
+
+5. "Mobile Experience"
+   Evaluate: Is a donate CTA visible above the fold on a phone-sized screen? Page speed?
+   A = donate CTA above fold, fast load, no usability issues
+   B = CTA visible but requires a small scroll, or load slightly slow
+   C = CTA requires scrolling, or minor layout issues
+   D = no donate CTA above fold, or significant mobile usability problems
+   F = site is effectively unusable on mobile
+
+OVERALL GRADE:
+A holistic judgment — not a mathematical average. Weight "Donation Path" and
+"Impact Storytelling" most heavily. A site with two D grades in those two dimensions
+should not receive better than C overall, even if other dimensions are stronger.
+
+NOTE PER DIMENSION:
+Each dimension requires a "note" field: 8 words or fewer, specific to what you observed.
+Not a generic description — a concrete observation.
+Good: "No donate button in top navigation."
+Bad: "Donation path needs improvement."
+
 OUTPUT FORMAT:
 Return a single valid JSON object with this exact structure. No markdown, no
 explanation outside the JSON.
@@ -151,6 +213,16 @@ explanation outside the JSON.
 {
   "org_name": "...",
   "domain": "...",
+  "scores": {
+    "overall": "...",
+    "dimensions": [
+      { "label": "Donation Path",       "grade": "...", "note": "..." },
+      { "label": "Impact Storytelling", "grade": "...", "note": "..." },
+      { "label": "Trust Signals",       "grade": "...", "note": "..." },
+      { "label": "Visitor Activation",  "grade": "...", "note": "..." },
+      { "label": "Mobile Experience",   "grade": "...", "note": "..." }
+    ]
+  },
   "opening": "...",
   "whats_working": [
     "...",
@@ -174,6 +246,9 @@ explanation outside the JSON.
 CRITICAL RULES:
 - findings must have 3–5 items, never more, never fewer
 - whats_working must have 2–4 items
+- scores.dimensions must always contain exactly 5 items in the exact order shown above
+- grade values must be a single letter A–F with an optional + or - modifier (e.g. B+, C-, D)
+- note values in scores must be 8 words or fewer and reference something specific you observed
 - Every claim must be grounded in the signals provided — do not invent details
 - If a signal is null or missing, do not mention that specific thing — find another angle
 - Do not mention UpStart Productions anywhere except implicitly in the closing CTA
