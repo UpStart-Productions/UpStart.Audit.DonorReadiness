@@ -31,7 +31,7 @@ def render_pdf(report: dict, output_path: str) -> str:
     context = {
         'org_name': report.get('org_name', 'Your Organization'),
         'domain': report.get('domain', report.get('_meta', {}).get('domain', '')),
-        'scores': report.get('scores', None),
+        # 'scores': report.get('scores', None),  # SCORING DISABLED — uncomment to re-enable
         'opening': report.get('opening', ''),
         'whats_working': report.get('whats_working', []),
         'findings': report.get('findings', []),
