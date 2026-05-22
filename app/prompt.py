@@ -13,6 +13,7 @@ Requires: ANTHROPIC_API_KEY in environment
 import json
 import os
 import sys
+from typing import Optional
 
 import anthropic
 
@@ -286,7 +287,52 @@ CRITICAL RULES:
 
 # ── User message builder ───────────────────────────────────────────────────────
 
-def build_user_message(signals: dict) -> str:
+def _companion_block(companion_stats: dict) -> str:
+    """
+    Format companion audit stats into a briefing block for the closing teaser.
+    The block instructs Claude to reference the companion audits only in the
+    closing — not as findings — keeping the donor report focused.
+    """
+    lines = ['--- COMPANION AUDITS (closing reference only) ---',
+             'While auditing this site we also ran a technical SEO scan and a WCAG 2.1 '
+             'accessibility audit. Use these findings ONLY to write a brief, warm closing '
+             'reference — not as findings. Do not list numbers or technical jargon in the '
+             'closing. Just let the reader know that more is available if they book a call.']
+
+    seo = companion_stats.get('seo')
+    if seo:
+        lines.append('')
+        lines.append(f'SEO SCAN ({seo.get("pages_crawled", "?")} pages):')
+        if seo.get('missing_meta_description'):
+            lines.append(f'  - {seo["missing_meta_description"]} page(s) missing meta descriptions')
+        if seo.get('missing_h1'):
+            lines.append(f'  - {seo["missing_h1"]} page(s) have no H1 heading')
+        if seo.get('images_missing_alt'):
+            lines.append(f'  - {seo["images_missing_alt"]} image(s) missing alt text')
+        sitemap = 'found' if seo.get('has_sitemap') else 'not found'
+        robots  = 'found' if seo.get('has_robots')  else 'not found'
+        lines.append(f'  - Sitemap: {sitemap}  |  robots.txt: {robots}')
+
+    a11y = companion_stats.get('a11y')
+    if a11y:
+        lines.append('')
+        lines.append(f'ACCESSIBILITY SCAN (WCAG 2.1 AA, {a11y.get("pages_crawled", "?")} pages):')
+        lines.append(
+            f'  - {a11y.get("critical", 0)} critical and {a11y.get("serious", 0)} serious '
+            f'violations ({a11y.get("total_violations", 0)} total across '
+            f'{a11y.get("unique_issue_types", 0)} distinct issue types)'
+        )
+
+    lines += [
+        '',
+        'Suggested closing phrasing (adapt freely — do not copy verbatim):',
+        '  "We also ran a technical SEO scan and full accessibility audit while we were '
+        'in there — findings I\'d be happy to walk through in a discovery call."',
+    ]
+    return '\n'.join(lines)
+
+
+def build_user_message(signals: dict, companion_stats: Optional[dict] = None) -> str:
     """
     Distil the raw signals dict into a focused briefing for Claude.
     We summarize rather than dump the full JSON to keep the prompt tight
@@ -462,20 +508,33 @@ DONATE PAGE (first 1000 chars):
         file_links_section=file_links_block,
     )
 
+    companion_section = ''
+    if companion_stats:
+        companion_section = '\n\n' + _companion_block(companion_stats)
+
     return (
         f"Please write the Donor Readiness audit memo for this nonprofit website.\n\n"
         f"Here is everything I observed during my review:\n\n"
-        f"{briefing}\n\n"
+        f"{briefing}"
+        f"{companion_section}\n\n"
         f"Now write the report. Remember: return only valid JSON, no markdown wrapper."
     )
 
 
 # ── Claude API call ────────────────────────────────────────────────────────────
 
-def generate_report(signals: dict, model: str = 'claude-opus-4-6') -> dict:
+def generate_report(
+    signals: dict,
+    model: str = 'claude-opus-4-6',
+    companion_stats: Optional[dict] = None,
+) -> dict:
     """
     Call Claude with the signals and return the parsed report dict.
     Raises on API error or JSON parse failure.
+
+    companion_stats: optional dict with 'seo' and/or 'a11y' summary dicts
+    (from companion.py). When present, Claude is instructed to tease the
+    companion audits in the closing section.
     """
     api_key = os.environ.get('ANTHROPIC_API_KEY')
     if not api_key:
@@ -485,7 +544,7 @@ def generate_report(signals: dict, model: str = 'claude-opus-4-6') -> dict:
         )
 
     client = anthropic.Anthropic(api_key=api_key)
-    user_message = build_user_message(signals)
+    user_message = build_user_message(signals, companion_stats=companion_stats)
 
     print('[prompt] Calling Claude API...', file=sys.stderr)
     message = client.messages.create(

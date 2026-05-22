@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 
 # Local modules
 from crawler import crawl
+from companion import run_seo_audit, run_a11y_audit
 from prompt import generate_report
 from renderer import render_pdf
 
@@ -351,9 +352,38 @@ def main():
         json.dump(signals, f, indent=2)
     print(f'      Signals saved: {signals_path}', file=sys.stderr)
 
+    # ── Companion audits: crawl phase ──────────────────────────────────────────
+    # Run both crawls now (before Claude) so summary stats enrich the closing.
+    # Report (.docx) generation happens after the main PDF.
+    companion_stats = {}
+    skip_companions = os.environ.get('SKIP_COMPANION_AUDITS', '').lower() in ('1', 'true', 'yes')
+
+    if not skip_companions:
+        print(f'\n[1b/3] SEO companion crawl...', file=sys.stderr)
+        tc0 = time.time()
+        seo_result = run_seo_audit(url, str(reports_dir))
+        if seo_result:
+            companion_stats['seo'] = seo_result.get('summary', {})
+            print(f'       Done in {time.time()-tc0:.1f}s', file=sys.stderr)
+
+        print(f'\n[1c/3] Accessibility companion crawl...', file=sys.stderr)
+        tc1 = time.time()
+        a11y_result = run_a11y_audit(url, str(reports_dir))
+        if a11y_result:
+            companion_stats['a11y'] = a11y_result.get('summary', {})
+            print(f'       Done in {time.time()-tc1:.1f}s', file=sys.stderr)
+    else:
+        seo_result  = None
+        a11y_result = None
+        print(f'\n[1b/3] Companion audits skipped (SKIP_COMPANION_AUDITS=1)', file=sys.stderr)
+
     print(f'\n[2/3] Generating report ({model})...', file=sys.stderr)
     t1 = time.time()
-    report = generate_report(signals, model=model)
+    report = generate_report(
+        signals,
+        model=model,
+        companion_stats=companion_stats if companion_stats else None,
+    )
     print(f'      Done in {time.time()-t1:.1f}s  '
           f'({report["_meta"]["input_tokens"]} in / {report["_meta"]["output_tokens"]} out)',
           file=sys.stderr)
@@ -367,12 +397,23 @@ def main():
     final_path = render_pdf(report, pdf_path)
     print(f'      Done in {time.time()-t2:.1f}s', file=sys.stderr)
 
+    # ── Companion audits: report generation phase ───────────────────────────────
+    companion_paths = []
+    if seo_result and seo_result.get('report_path'):
+        companion_paths.append(('SEO audit', seo_result['report_path']))
+    if a11y_result and a11y_result.get('report_path'):
+        companion_paths.append(('A11y audit', a11y_result['report_path']))
+
     print(f'\n{"="*60}', file=sys.stderr)
     print(f'  ✓  PDF ready: {final_path}', file=sys.stderr)
+    for label, cp in companion_paths:
+        print(f'  ✓  {label}: {cp}', file=sys.stderr)
     print(f'     Total time: {time.time()-t0:.1f}s', file=sys.stderr)
     print(f'{"="*60}\n', file=sys.stderr)
 
     print(final_path)
+    for _, cp in companion_paths:
+        print(cp)
 
 
 if __name__ == '__main__':

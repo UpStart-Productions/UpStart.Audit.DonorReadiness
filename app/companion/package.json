@@ -1,0 +1,11 @@
+{
+  "name": "donor-audit-companion-deps",
+  "version": "1.0.0",
+  "description": "Node.js dependencies for SEO and accessibility companion report generation",
+  "private": true,
+  "dependencies": {
+    "@axe-core/playwright": "^4.9.1",
+    "docx": "^8.5.0",
+    "playwright": "^1.44.0"
+  }
+}
