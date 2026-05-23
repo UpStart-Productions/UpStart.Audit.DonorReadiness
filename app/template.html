@@ -690,25 +690,28 @@
     </div>
     {% endif %}
 
-    {# ── SEO Finding ── #}
+    {# ── SEO Finding — always shown when crawl ran ── #}
     {% if companion.seo %}
     {% set s = companion.seo %}
     {% set seo_issues = s.missing_meta_description + s.missing_h1 + s.images_missing_alt %}
-    {% if seo_issues > 0 %}
     <div class="tech-finding">
       <div class="tech-finding-label">Search Engine Optimization</div>
+      {% if seo_issues > 0 %}
       <div class="tech-finding-title">SEO Gaps Are Limiting How Many People Find Your Site</div>
+      {% else %}
+      <div class="tech-finding-title">SEO Fundamentals Look Solid — We Checked</div>
+      {% endif %}
       <div class="tech-stat-row">
         {% if s.missing_meta_description > 0 %}
         <div class="tech-stat">
           <span class="tech-stat-number{% if s.missing_meta_description > 2 %} urgent{% endif %}">{{ s.missing_meta_description }}</span>
-          <span class="tech-stat-label">Missing Meta Descriptions</span>
+          <span class="tech-stat-label">Missing Meta Desc</span>
         </div>
         {% endif %}
         {% if s.images_missing_alt > 0 %}
         <div class="tech-stat">
           <span class="tech-stat-number{% if s.images_missing_alt > 5 %} urgent{% endif %}">{{ s.images_missing_alt }}</span>
-          <span class="tech-stat-label">Images Without Alt Text</span>
+          <span class="tech-stat-label">Images Without Alt</span>
         </div>
         {% endif %}
         {% if s.missing_h1 > 0 %}
@@ -721,19 +724,34 @@
           <span class="tech-stat-number">{{ s.pages_crawled }}</span>
           <span class="tech-stat-label">Pages Scanned</span>
         </div>
+        {% if seo_issues == 0 and s.pages_crawled > 0 %}
+        <div class="tech-stat">
+          <span class="tech-stat-number" style="color:#2a9d5c;">✓</span>
+          <span class="tech-stat-label">No Issues Found</span>
+        </div>
+        {% endif %}
       </div>
       <div class="tech-finding-body">
-        We crawled {{ s.pages_crawled }} pages of your site and found {{ seo_issues }} technical SEO issues.
+        {% if seo_issues > 0 %}
+        We crawled {{ s.pages_crawled }} page{% if s.pages_crawled != 1 %}s{% endif %} of your site and found {{ seo_issues }} technical SEO issue{% if seo_issues != 1 %}s{% endif %}.
         {% if s.missing_meta_description > 0 %}
         {{ s.missing_meta_description }} page{% if s.missing_meta_description != 1 %}s are{% else %} is{% endif %} missing meta descriptions — the text that appears in Google search results and directly influences whether someone clicks through to your site.
         {% endif %}
         {% if s.images_missing_alt > 0 %}
         {{ s.images_missing_alt }} image{% if s.images_missing_alt != 1 %}s are{% else %} is{% endif %} missing alt text, which hurts both search ranking and accessibility.
         {% endif %}
+        {% if s.missing_h1 > 0 %}
+        {{ s.missing_h1 }} page{% if s.missing_h1 != 1 %}s are{% else %} is{% endif %} missing an H1 heading, which search engines rely on to understand page content.
+        {% endif %}
         {% if not s.has_sitemap %}
-        Your site also has no XML sitemap, which makes it harder for search engines to discover and index your pages.
+        Your site also has no XML sitemap, making it harder for search engines to discover and index your pages.
         {% endif %}
         Every page that can't be found in search is a donor or volunteer who never arrives.
+        {% elif s.pages_crawled == 0 %}
+        Our SEO scan was unable to fetch pages from your site — this may be a temporary network issue or a server configuration that blocked our crawler. We recommend a manual SEO review to confirm your site's search visibility.
+        {% else %}
+        We scanned {{ s.pages_crawled }} page{% if s.pages_crawled != 1 %}s{% endif %} and found no missing meta descriptions, H1 headings, or image alt text issues — the technical basics are covered.{% if not s.has_sitemap %} One item worth addressing: your site has no XML sitemap, which helps search engines discover and index all your pages.{% endif %} Good technical SEO is table stakes; the next level is content strategy and keyword targeting, which is where we can help you turn visibility into donor traffic.
+        {% endif %}
       </div>
       <div class="service-badge">
         <div class="service-badge-icon-wrap">
@@ -748,7 +766,6 @@
         <div class="service-badge-sub">SEO audit, fixes &amp; ongoing optimization</div>
       </div>
     </div>
-    {% endif %}
     {% endif %}
 
   </div>{# /findings-section #}
