@@ -682,12 +682,16 @@
   </div>
   <div class="findings-section">
 
-    {# ── Accessibility Finding ── #}
-    {% if companion.a11y and companion.a11y.total_violations > 0 %}
+    {# ── Accessibility Finding — always shown when crawl ran ── #}
+    {% if companion.a11y %}
     {% set a = companion.a11y %}
     <div class="tech-finding">
       <div class="tech-finding-label">Accessibility — WCAG 2.1 AA</div>
+      {% if a.total_violations > 0 %}
       <div class="tech-finding-title">Your Site Has Accessibility Barriers That Block Donors and Volunteers</div>
+      {% else %}
+      <div class="tech-finding-title">No Accessibility Violations Detected — We Checked</div>
+      {% endif %}
       <div class="tech-stat-row">
         {% if a.critical > 0 %}
         <div class="tech-stat">
@@ -711,16 +715,25 @@
           <span class="tech-stat-number">{{ a.pages_crawled }}</span>
           <span class="tech-stat-label">Pages Scanned</span>
         </div>
+        {% if a.total_violations > 0 %}
         <div class="tech-stat">
           <span class="tech-stat-number">{{ a.unique_issue_types }}</span>
           <span class="tech-stat-label">Issue Types</span>
         </div>
+        {% else %}
+        <div class="tech-stat">
+          <span class="tech-stat-number" style="color:#2a9d5c;">✓</span>
+          <span class="tech-stat-label">No Issues Found</span>
+        </div>
+        {% endif %}
       </div>
       <div class="tech-finding-body">
         {% if a.critical > 0 or a.serious > 0 %}
         Our WCAG 2.1 AA scan found {{ a.critical + a.serious }} critical or serious violations across {{ a.pages_crawled }} pages — the kind that prevent screen reader users from navigating your site, block keyboard-only visitors from completing forms, and fail users with low vision entirely. These aren't edge cases: roughly 1 in 4 Americans lives with a disability, and federal accessibility standards increasingly apply to nonprofit websites. More practically, accessibility barriers create friction for every visitor — not just those using assistive technology. A donor who can't complete your form doesn't donate.
-        {% else %}
+        {% elif a.total_violations > 0 %}
         Our WCAG 2.1 AA scan found {{ a.total_violations }} moderate accessibility issues across {{ a.pages_crawled }} pages. While none are critical blockers, these gaps create friction that quietly erodes engagement — particularly for older visitors, mobile users, and anyone using assistive technology.
+        {% else %}
+        Our WCAG 2.1 AA scan detected no violations across {{ a.pages_crawled }} pages — a strong result. Accessibility isn't just about compliance; it directly affects how many people can use your site to learn about your mission, volunteer, and donate. Keeping this clean as your site evolves takes ongoing attention, which is something UpStart can help maintain.
         {% endif %}
       </div>
       <div class="service-badge">
