@@ -274,6 +274,10 @@ def run_audit(url: str, output_dir: str = '/tmp') -> dict:
     )
     print(f'[2/3] Done in {time.time()-t1:.1f}s', file=sys.stderr)
 
+    # Stash companion stats in the report so the template can render them
+    if companion_stats:
+        report['_companion'] = companion_stats
+
     print('[3/3] Rendering PDF...', file=sys.stderr)
     t2 = time.time()
     final_path = render_pdf(report, pdf_path)

@@ -366,6 +366,103 @@
     .grade-f { color: #f87171; }
 
     /* ═══════════════════════════════
+       TECHNICAL AUDIT FINDINGS
+    ═══════════════════════════════ */
+    .technical-section {
+      margin-top: 4px;
+      margin-bottom: 0;
+      padding: 16px 0.2in 18px;
+      background: #f5f4fc;
+      border-top: 2px solid #e0daf5;
+    }
+
+    .technical-section .section-label {
+      color: #5a4a99;
+      border-bottom-color: #c9c1ec;
+      margin-bottom: 14px;
+    }
+
+    .technical-intro {
+      font-size: 9.5pt;
+      font-weight: 300;
+      color: #555;
+      line-height: 1.55;
+      margin-bottom: 14px;
+      font-style: italic;
+    }
+
+    .tech-finding {
+      background: #fff;
+      border-left: 3px solid #5a4a99;
+      border-radius: 0 3px 3px 0;
+      padding: 12px 14px 10px;
+      margin-bottom: 10px;
+    }
+
+    .tech-finding:last-child { margin-bottom: 0; }
+
+    .tech-finding-label {
+      font-size: 6.5pt;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #5a4a99;
+      margin-bottom: 3px;
+    }
+
+    .tech-finding-title {
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 7px;
+      line-height: 1.3;
+    }
+
+    .tech-finding-body {
+      font-size: 9.5pt;
+      font-weight: 300;
+      color: #444;
+      line-height: 1.6;
+      margin-bottom: 10px;
+    }
+
+    .tech-stat-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .tech-stat {
+      background: #f0eefb;
+      border-radius: 3px;
+      padding: 5px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 0.7in;
+    }
+
+    .tech-stat-number {
+      font-size: 14pt;
+      font-weight: 900;
+      color: #5a4a99;
+      line-height: 1.1;
+    }
+
+    .tech-stat-number.urgent { color: #af1b23; }
+
+    .tech-stat-label {
+      font-size: 6.5pt;
+      font-weight: 600;
+      color: #888;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      text-align: center;
+      margin-top: 2px;
+    }
+
+    /* ═══════════════════════════════
        CLOSING / CTA BLOCK
     ═══════════════════════════════ */
     .closing-section {
@@ -420,9 +517,11 @@
       .finding         { break-inside: avoid; }
       .service-badge   { break-inside: avoid; }
       .working-section { break-inside: avoid; }
-      .closing-section { break-inside: avoid; }
-      .opening         { break-inside: avoid; }
-      .score-card      { break-inside: avoid; }
+      .closing-section  { break-inside: avoid; }
+      .opening          { break-inside: avoid; }
+      .score-card       { break-inside: avoid; }
+      .tech-finding     { break-inside: avoid; }
+      .technical-section .section-label { break-after: avoid; }
 
       /* Keep a finding title with its body */
       .finding-title   { break-after: avoid; }
@@ -532,6 +631,132 @@
     </div>
 
   </div><!-- /body -->
+
+  <!-- ── Technical Audit Findings ── -->
+  {% if companion and (companion.a11y or companion.seo) %}
+  <div class="technical-section">
+    <div class="section-label">Technical Audit Findings</div>
+    <p class="technical-intro">In addition to reviewing your donor engagement experience, we ran automated SEO and accessibility scans across your site. These findings are separate from the observations above — they reflect technical gaps that directly affect how many people can find your site and whether they can use it once they arrive.</p>
+
+    {# ── Accessibility Finding ── #}
+    {% if companion.a11y and companion.a11y.total_violations > 0 %}
+    {% set a = companion.a11y %}
+    <div class="tech-finding">
+      <div class="tech-finding-label">Accessibility — WCAG 2.1 AA</div>
+      <div class="tech-finding-title">Your Site Has Accessibility Barriers That Block Donors and Volunteers</div>
+      <div class="tech-stat-row">
+        {% if a.critical > 0 %}
+        <div class="tech-stat">
+          <span class="tech-stat-number urgent">{{ a.critical }}</span>
+          <span class="tech-stat-label">Critical</span>
+        </div>
+        {% endif %}
+        {% if a.serious > 0 %}
+        <div class="tech-stat">
+          <span class="tech-stat-number urgent">{{ a.serious }}</span>
+          <span class="tech-stat-label">Serious</span>
+        </div>
+        {% endif %}
+        {% if a.moderate > 0 %}
+        <div class="tech-stat">
+          <span class="tech-stat-number">{{ a.moderate }}</span>
+          <span class="tech-stat-label">Moderate</span>
+        </div>
+        {% endif %}
+        <div class="tech-stat">
+          <span class="tech-stat-number">{{ a.pages_crawled }}</span>
+          <span class="tech-stat-label">Pages Scanned</span>
+        </div>
+        <div class="tech-stat">
+          <span class="tech-stat-number">{{ a.unique_issue_types }}</span>
+          <span class="tech-stat-label">Issue Types</span>
+        </div>
+      </div>
+      <div class="tech-finding-body">
+        {% if a.critical > 0 or a.serious > 0 %}
+        Our WCAG 2.1 AA scan found {{ a.critical + a.serious }} critical or serious violations across {{ a.pages_crawled }} pages — the kind that prevent screen reader users from navigating your site, block keyboard-only visitors from completing forms, and fail users with low vision entirely. These aren't edge cases: roughly 1 in 4 Americans lives with a disability, and federal accessibility standards increasingly apply to nonprofit websites. More practically, accessibility barriers create friction for every visitor — not just those using assistive technology. A donor who can't complete your form doesn't donate.
+        {% else %}
+        Our WCAG 2.1 AA scan found {{ a.total_violations }} moderate accessibility issues across {{ a.pages_crawled }} pages. While none are critical blockers, these gaps create friction that quietly erodes engagement — particularly for older visitors, mobile users, and anyone using assistive technology.
+        {% endif %}
+      </div>
+      <div class="service-badge">
+        <div class="service-badge-icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/>
+          </svg>
+        </div>
+        <div class="service-badge-text">
+          <div class="service-badge-eyebrow">UpStart Can Help</div>
+          <div class="service-badge-name">Accessibility &amp; Inclusion</div>
+        </div>
+        <div class="service-badge-sub">Audit, remediation &amp; WCAG compliance</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── SEO Finding ── #}
+    {% if companion.seo %}
+    {% set s = companion.seo %}
+    {% set seo_issues = s.missing_meta_description + s.missing_h1 + s.images_missing_alt %}
+    {% if seo_issues > 0 %}
+    <div class="tech-finding">
+      <div class="tech-finding-label">Search Engine Optimization</div>
+      <div class="tech-finding-title">SEO Gaps Are Limiting How Many People Find Your Site</div>
+      <div class="tech-stat-row">
+        {% if s.missing_meta_description > 0 %}
+        <div class="tech-stat">
+          <span class="tech-stat-number{% if s.missing_meta_description > 2 %} urgent{% endif %}">{{ s.missing_meta_description }}</span>
+          <span class="tech-stat-label">Missing Meta Descriptions</span>
+        </div>
+        {% endif %}
+        {% if s.images_missing_alt > 0 %}
+        <div class="tech-stat">
+          <span class="tech-stat-number{% if s.images_missing_alt > 5 %} urgent{% endif %}">{{ s.images_missing_alt }}</span>
+          <span class="tech-stat-label">Images Without Alt Text</span>
+        </div>
+        {% endif %}
+        {% if s.missing_h1 > 0 %}
+        <div class="tech-stat">
+          <span class="tech-stat-number">{{ s.missing_h1 }}</span>
+          <span class="tech-stat-label">Pages Missing H1</span>
+        </div>
+        {% endif %}
+        <div class="tech-stat">
+          <span class="tech-stat-number">{{ s.pages_crawled }}</span>
+          <span class="tech-stat-label">Pages Scanned</span>
+        </div>
+      </div>
+      <div class="tech-finding-body">
+        We crawled {{ s.pages_crawled }} pages of your site and found {{ seo_issues }} technical SEO issues.
+        {% if s.missing_meta_description > 0 %}
+        {{ s.missing_meta_description }} page{% if s.missing_meta_description != 1 %}s are{% else %} is{% endif %} missing meta descriptions — the text that appears in Google search results and directly influences whether someone clicks through to your site.
+        {% endif %}
+        {% if s.images_missing_alt > 0 %}
+        {{ s.images_missing_alt }} image{% if s.images_missing_alt != 1 %}s are{% else %} is{% endif %} missing alt text, which hurts both search ranking and accessibility.
+        {% endif %}
+        {% if not s.has_sitemap %}
+        Your site also has no XML sitemap, which makes it harder for search engines to discover and index your pages.
+        {% endif %}
+        Every page that can't be found in search is a donor or volunteer who never arrives.
+      </div>
+      <div class="service-badge">
+        <div class="service-badge-icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+        </div>
+        <div class="service-badge-text">
+          <div class="service-badge-eyebrow">UpStart Can Help</div>
+          <div class="service-badge-name">Websites That Work</div>
+        </div>
+        <div class="service-badge-sub">SEO audit, fixes &amp; ongoing optimization</div>
+      </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+  </div>
+  {% endif %}
 
   <!-- ── Closing / CTA ── -->
   <div class="closing-section">

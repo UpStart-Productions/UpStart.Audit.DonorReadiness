@@ -36,6 +36,7 @@ def render_pdf(report: dict, output_path: str) -> str:
         'whats_working': report.get('whats_working', []),
         'findings': report.get('findings', []),
         'closing': report.get('closing', ''),
+        'companion': report.get('_companion', None),
         'report_date': time.strftime('%-d %B %Y'),
     }
 
