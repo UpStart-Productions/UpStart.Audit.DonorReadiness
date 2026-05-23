@@ -77,18 +77,17 @@ def render_pdf(report: dict, output_path: str) -> str:
             height: 36px;
             display: flex;
             align-items: center;
-            justify-content: space-between;
             padding: 0 0.5in;
             box-sizing: border-box;
             font-family: Arial, Helvetica, sans-serif;
         ">
-            <span style="font-size:9pt; font-weight:300; color:rgba(255,255,255,0.75); letter-spacing:0.02em;">
+            <span style="flex:1; font-size:9pt; font-weight:300; color:rgba(255,255,255,0.75); letter-spacing:0.02em; text-align:left;">
                 Technology that serves your mission.
             </span>
-            <span style="font-size:8pt; font-weight:300; color:rgba(255,255,255,0.4); letter-spacing:0.04em;">
-                <span class="pageNumber"></span> / <span class="totalPages"></span>
+            <span style="flex:1; font-size:8pt; font-weight:300; color:#ffffff; letter-spacing:0.06em; text-align:center;">
+                Page <span class="pageNumber"></span> of <span class="totalPages"></span>
             </span>
-            <span style="font-size:9pt; font-weight:700; color:#ffffff; letter-spacing:0.1em; text-transform:uppercase;">
+            <span style="flex:1; font-size:9pt; font-weight:700; color:#ffffff; letter-spacing:0.1em; text-transform:uppercase; text-align:right;">
                 HEYUPSTART.COM
             </span>
         </div>
