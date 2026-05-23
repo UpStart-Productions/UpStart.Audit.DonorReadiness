@@ -85,6 +85,9 @@ def render_pdf(report: dict, output_path: str) -> str:
             <span style="font-size:9pt; font-weight:300; color:rgba(255,255,255,0.75); letter-spacing:0.02em;">
                 Technology that serves your mission.
             </span>
+            <span style="font-size:8pt; font-weight:300; color:rgba(255,255,255,0.4); letter-spacing:0.04em;">
+                <span class="pageNumber"></span> / <span class="totalPages"></span>
+            </span>
             <span style="font-size:9pt; font-weight:700; color:#ffffff; letter-spacing:0.1em; text-transform:uppercase;">
                 HEYUPSTART.COM
             </span>

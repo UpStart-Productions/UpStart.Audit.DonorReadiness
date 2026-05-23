@@ -140,6 +140,17 @@
       letter-spacing: -0.01em;
     }
 
+    /* ── Prepared for subtitle ── */
+    .prepared-for {
+      font-size: 8pt;
+      font-weight: 300;
+      color: #999999;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: -10px;
+      margin-bottom: 18px;
+    }
+
     /* ── Opening ── */
     .opening {
       background: #faf9ff;
@@ -365,6 +376,11 @@
     .grade-d { color: #fb923c; }
     .grade-f { color: #f87171; }
 
+    /* Space between purple Technical Audit panel and first finding card */
+    .technical-section + .findings-section {
+      margin-top: 1rem;
+    }
+
     /* ═══════════════════════════════
        TECHNICAL AUDIT FINDINGS
     ═══════════════════════════════ */
@@ -496,6 +512,37 @@
       margin-top: 5px;
       letter-spacing: 0.02em;
     }
+
+    .cta-alt-contact {
+      font-size: 8.5pt;
+      font-weight: 300;
+      color: #8878c3;
+      margin-top: 10px;
+    }
+
+    .cta-alt-contact a {
+      color: #8878c3;
+      text-decoration: none;
+    }
+
+    .audit-meta {
+      font-size: 7.5pt;
+      font-weight: 300;
+      color: #bbbbbb;
+      letter-spacing: 0.04em;
+      margin-top: 18px;
+      padding-top: 12px;
+      border-top: 1px solid #e8e4f4;
+    }
+
+    .disclaimer {
+      font-size: 7pt;
+      font-weight: 300;
+      color: #cccccc;
+      line-height: 1.5;
+      margin-top: 5px;
+      font-style: italic;
+    }
     /* Footer is handled by Playwright's footer_template on every page */
     /* ═══════════════════════════════
        PRINT / PDF — page break control
@@ -546,6 +593,7 @@
 
     <!-- Report Title -->
     <h1 class="report-title">Donor Engagement Snapshot</h1>
+    <div class="prepared-for">Prepared exclusively for {{ org_name }}</div>
 
     <!-- Opening -->
     <div class="opening">{{ opening }}</div>
@@ -721,6 +769,14 @@
         </div>
         {% endif %}
         <div class="tech-stat">
+          <span class="tech-stat-number" style="color:{% if s.has_sitemap %}#2a9d5c{% else %}#af1b23{% endif %};">{% if s.has_sitemap %}✓{% else %}✗{% endif %}</span>
+          <span class="tech-stat-label">Sitemap</span>
+        </div>
+        <div class="tech-stat">
+          <span class="tech-stat-number" style="color:{% if s.has_robots %}#2a9d5c{% else %}#af1b23{% endif %};">{% if s.has_robots %}✓{% else %}✗{% endif %}</span>
+          <span class="tech-stat-label">robots.txt</span>
+        </div>
+        <div class="tech-stat">
           <span class="tech-stat-number">{{ s.pages_crawled }}</span>
           <span class="tech-stat-label">Pages Scanned</span>
         </div>
@@ -778,7 +834,10 @@
     <a class="cta-button" href="https://heyupstart.com/book-discovery-chat/">
       Book a Free Discovery Chat →
     </a>
-    <p class="cta-print-url">heyupstart.com/chat</p>
+    <p class="cta-print-url">heyupstart.com/book-discovery-chat</p>
+    <p class="cta-alt-contact">Or email us at <a href="mailto:hello@heyupstart.com">hello@heyupstart.com</a></p>
+    <p class="audit-meta">Automated analysis · {{ report_date }} · UpStart Productions</p>
+    <p class="disclaimer">This report reflects an automated point-in-time scan of publicly available content and is intended as a starting point for conversation, not a comprehensive audit. Results may vary based on site configuration and content at the time of analysis.</p>
   </div>
 
 
