@@ -10,32 +10,40 @@ Usage:
 import sys
 import re
 import json
-import subprocess
 import urllib.parse
+import urllib.request
+import urllib.error
 from pathlib import Path
 
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-HEADERS = ["-H", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-           "-H", "Accept-Language: en-US,en;q=0.5"]
+_HEADERS = {
+    "User-Agent": UA,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+}
 
 def fetch(url, timeout=20):
+    """Fetch a URL and return its HTML body as a string. Pure Python, Lambda-safe."""
     try:
-        result = subprocess.run(
-            ["curl", "-s", "-L", "--max-time", str(timeout), "-A", UA] + HEADERS + [url],
-            capture_output=True, text=True, timeout=timeout + 5
-        )
-        return result.stdout
-    except Exception as e:
+        req = urllib.request.Request(url, headers=_HEADERS)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            charset = "utf-8"
+            ct = resp.headers.get_content_charset()
+            if ct:
+                charset = ct
+            return resp.read().decode(charset, errors="replace")
+    except Exception:
         return ""
 
 def fetch_status(url):
+    """Return the HTTP status code for a URL. Pure Python, Lambda-safe."""
     try:
-        result = subprocess.run(
-            ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "-L", "--max-time", "10", "-A", UA] + HEADERS + [url],
-            capture_output=True, text=True, timeout=15
-        )
-        return int(result.stdout.strip() or "0")
-    except:
+        req = urllib.request.Request(url, headers=_HEADERS)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.status
+    except urllib.error.HTTPError as e:
+        return e.code
+    except Exception:
         return 0
 
 def extract_links(html, base_domain):
