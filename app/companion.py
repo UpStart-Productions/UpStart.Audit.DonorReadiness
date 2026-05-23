@@ -66,19 +66,22 @@ def _find_node_modules() -> Optional[Path]:
 def _summarize_seo(crawl_data: dict) -> dict:
     """Extract a concise stat summary from crawl_results.json."""
     pages = crawl_data.get('pages', [])
-    missing_meta   = sum(1 for p in pages if not p.get('meta_description', '').strip())
-    missing_h1     = sum(1 for p in pages if not p.get('h1', []))
-    images_no_alt  = sum(
-        sum(1 for img in p.get('images', []) if not img.get('alt', '').strip())
+    # meta_description is None (not missing key) when absent — coerce safely
+    missing_meta  = sum(1 for p in pages if not (p.get('meta_description') or '').strip())
+    # h1 is a list; missing means empty list
+    missing_h1    = sum(1 for p in pages if not p.get('h1'))
+    # images have a 'status' field: "missing", "empty", "ok", "decorative"
+    images_no_alt = sum(
+        sum(1 for img in p.get('images', []) if img.get('status') in ('missing', 'empty'))
         for p in pages
     )
     return {
-        'pages_crawled':          len(pages),
+        'pages_crawled':            len(pages),
         'missing_meta_description': missing_meta,
-        'missing_h1':             missing_h1,
-        'images_missing_alt':     images_no_alt,
-        'has_sitemap':            crawl_data.get('sitemap_status', '') == 'found',
-        'has_robots':             crawl_data.get('robots_status', '')  == 'found',
+        'missing_h1':               missing_h1,
+        'images_missing_alt':       images_no_alt,
+        'has_sitemap':              crawl_data.get('sitemap_status', '') == 'found',
+        'has_robots':               crawl_data.get('robots_status', '')  == 'found',
     }
 
 
