@@ -229,6 +229,53 @@ def send_report_email(to_email: str, org_name: str, pdf_path: str, first_name: s
     print(f'[email] Report sent to {to_email}', file=sys.stderr)
 
 
+def send_notification_email(
+    url: str,
+    to_email: str,
+    first_name: str = '',
+    last_name: str = '',
+    role: str = '',
+    org_name: str = '',
+    ran_at: str = '',
+) -> None:
+    """
+    Send a plain-text CRM notification to jeff@heyupstart.com when an audit completes.
+    Formatted for easy copy-paste into Notion.
+    """
+    import boto3
+
+    notify_to  = os.environ.get('NOTIFY_EMAIL', 'jeff@heyupstart.com')
+    from_email = os.environ.get('FROM_EMAIL', 'hello@heyupstart.com')
+    from_name  = os.environ.get('FROM_NAME', 'UpStart Productions')
+    region     = os.environ.get('AWS_REGION', 'us-east-1')
+
+    full_name  = f'{first_name} {last_name}'.strip() or '(not provided)'
+    role_str   = role or '(not provided)'
+    org_str    = org_name or '(not detected)'
+
+    body = (
+        f'New Donor Readiness Audit\n'
+        f'{'─' * 36}\n'
+        f'Website:    {url}\n'
+        f'Org:        {org_str}\n'
+        f'Name:       {full_name}\n'
+        f'Role:       {role_str}\n'
+        f'Sent to:    {to_email}\n'
+        f'Date/Time:  {ran_at}\n'
+    )
+
+    ses = boto3.client('ses', region_name=region)
+    ses.send_email(
+        Source=formataddr((from_name, from_email)),
+        Destination={'ToAddresses': [notify_to]},
+        Message={
+            'Subject': {'Data': f'Audit completed — {url}', 'Charset': 'UTF-8'},
+            'Body':    {'Text': {'Data': body, 'Charset': 'UTF-8'}},
+        },
+    )
+    print(f'[email] Notification sent to {notify_to}', file=sys.stderr)
+
+
 # ── Core pipeline ──────────────────────────────────────────────────────────────
 
 def run_audit(url: str, output_dir: str = '/tmp') -> dict:
@@ -304,19 +351,28 @@ def lambda_handler(event, context):
 
         url        = (body.get('url')        or '').strip()
         email      = (body.get('email')      or '').strip()
-        first_name = (body.get('firstName') or '').strip()
+        first_name = (body.get('firstName')  or '').strip()
+        last_name  = (body.get('lastName')   or '').strip()
+        role       = (body.get('role')       or '').strip()
 
         if not url:
             return {'statusCode': 400, 'body': json.dumps({'error': 'url is required'})}
         if not email:
             return {'statusCode': 400, 'body': json.dumps({'error': 'email is required'})}
 
-        print(json.dumps({'event': 'AUDIT_STARTED', 'url': url, 'email': email, 'firstName': first_name}))
+        ran_at = time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())
+        print(json.dumps({'event': 'AUDIT_STARTED', 'url': url, 'email': email,
+                          'firstName': first_name, 'lastName': last_name, 'role': role}))
 
         result   = run_audit(url, output_dir='/tmp')
         org_name = result['report'].get('org_name', 'Your Organization')
 
         send_report_email(email, org_name, result['pdf_path'], first_name=first_name)
+        send_notification_email(
+            url=url, to_email=email,
+            first_name=first_name, last_name=last_name,
+            role=role, org_name=org_name, ran_at=ran_at,
+        )
 
         elapsed = round(time.time() - t_start, 1)
         print(json.dumps({'event': 'AUDIT_COMPLETE', 'url': url, 'org': org_name, 'duration_s': elapsed}))
