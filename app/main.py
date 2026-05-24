@@ -249,20 +249,22 @@ def send_notification_email(
     from_name  = os.environ.get('FROM_NAME', 'UpStart Productions')
     region     = os.environ.get('AWS_REGION', 'us-east-1')
 
-    full_name  = f'{first_name} {last_name}'.strip() or '(not provided)'
+    full_name  = (first_name + ' ' + last_name).strip() or '(not provided)'
     role_str   = role or '(not provided)'
     org_str    = org_name or '(not detected)'
+    divider    = '-' * 36
 
-    body = (
-        f'New Donor Readiness Audit\n'
-        f'{'─' * 36}\n'
-        f'Website:    {url}\n'
-        f'Org:        {org_str}\n'
-        f'Name:       {full_name}\n'
-        f'Role:       {role_str}\n'
-        f'Sent to:    {to_email}\n'
-        f'Date/Time:  {ran_at}\n'
-    )
+    body = '\n'.join([
+        'New Donor Readiness Audit',
+        divider,
+        'Website:    ' + url,
+        'Org:        ' + org_str,
+        'Name:       ' + full_name,
+        'Role:       ' + role_str,
+        'Sent to:    ' + to_email,
+        'Date/Time:  ' + ran_at,
+        '',
+    ])
 
     ses = boto3.client('ses', region_name=region)
     ses.send_email(
