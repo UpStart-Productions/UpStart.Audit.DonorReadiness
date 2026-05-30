@@ -296,23 +296,23 @@ def run_audit(url: str, output_dir: str = '/tmp') -> dict:
 
     print(f'[audit] Starting: {url}  model={model}', file=sys.stderr)
 
-    print('[1/3] Crawling...', file=sys.stderr)
+    print('[1/3] Crawling (parallel: main + SEO + a11y)...', file=sys.stderr)
     t0 = time.time()
-    signals = crawl(url)
-    print(f'[1/3] Done in {time.time()-t0:.1f}s', file=sys.stderr)
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        f_main = pool.submit(crawl, url)
+        f_seo  = pool.submit(crawl_seo_inline, url)
+        f_a11y = pool.submit(crawl_a11y_inline, url)
+        signals      = f_main.result()
+        seo_summary  = f_seo.result()
+        a11y_summary = f_a11y.result()
+    print(f'[1/3] All crawls done in {time.time()-t0:.1f}s', file=sys.stderr)
 
-    print('[1b/3] SEO companion crawl...', file=sys.stderr)
-    t_seo = time.time()
-    seo_summary = crawl_seo_inline(url)
-    companion_stats = {'seo': seo_summary} if seo_summary else {}
-    print(f'[1b/3] Done in {time.time()-t_seo:.1f}s', file=sys.stderr)
-
-    print('[1c/3] Accessibility companion crawl...', file=sys.stderr)
-    t_a11y = time.time()
-    a11y_summary = crawl_a11y_inline(url)
+    companion_stats = {}
+    if seo_summary:
+        companion_stats['seo'] = seo_summary
     if a11y_summary:
         companion_stats['a11y'] = a11y_summary
-    print(f'[1c/3] Done in {time.time()-t_a11y:.1f}s', file=sys.stderr)
 
     print('[2/3] Generating report...', file=sys.stderr)
     t1 = time.time()
