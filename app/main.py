@@ -411,11 +411,93 @@ def run_audit(url: str, output_dir: str = '/tmp', on_status=None) -> dict:
 
 # ── Lambda handler ─────────────────────────────────────────────────────────────
 
+CORS_HEADERS = {
+    'Access-Control-Allow-Origin':  'https://heyupstart.com',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+}
+
+
+def _s3_read_status(domain_key: str) -> dict | None:
+    """Read status.json from S3. Returns None if not found."""
+    try:
+        import boto3
+        s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        obj = s3.get_object(Bucket=AUDIT_BUCKET, Key=f'{domain_key}/status.json')
+        return json.loads(obj['Body'].read())
+    except Exception:
+        return None
+
+
+def _s3_read_report(domain_key: str) -> dict | None:
+    """Read report.json from S3. Returns None if not found."""
+    try:
+        import boto3
+        s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        obj = s3.get_object(Bucket=AUDIT_BUCKET, Key=f'{domain_key}/report.json')
+        return json.loads(obj['Body'].read())
+    except Exception:
+        return None
+
+
+def _handle_status_request(event) -> dict:
+    """
+    GET /status?domain=<domain>
+    Returns { status, report? } — report is included when status == 'complete'.
+    """
+    params = event.get('queryStringParameters') or {}
+    raw_domain = (params.get('domain') or '').strip()
+    if not raw_domain:
+        return {
+            'statusCode': 400,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'error': 'domain parameter is required'}),
+        }
+
+    domain_key = _normalize_domain(raw_domain)
+    status_data = _s3_read_status(domain_key)
+
+    if status_data is None:
+        return {
+            'statusCode': 404,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'status': 'pending'}),
+        }
+
+    status = status_data.get('status', 'pending')
+
+    if status == 'complete':
+        report = _s3_read_report(domain_key)
+        return {
+            'statusCode': 200,
+            'headers': CORS_HEADERS,
+            'body': json.dumps({'status': 'complete', 'report': report}),
+        }
+
+    return {
+        'statusCode': 200,
+        'headers': CORS_HEADERS,
+        'body': json.dumps({'status': status}),
+    }
+
+
 def lambda_handler(event, context):
     """
     AWS Lambda entrypoint.
-    Expects event body: { "url": "...", "email": "..." }
+
+    GET  ?domain=<domain>  → return audit status / report from S3
+    POST {url, email, ...} → run audit pipeline
     """
+    method = event.get('httpMethod', 'POST').upper()
+
+    # OPTIONS preflight
+    if method == 'OPTIONS':
+        return {'statusCode': 200, 'headers': CORS_HEADERS, 'body': ''}
+
+    # Status endpoint
+    if method == 'GET':
+        return _handle_status_request(event)
+
     t_start = time.time()
     url = ''
     try:
@@ -466,6 +548,7 @@ def lambda_handler(event, context):
 
         return {
             'statusCode': 200,
+            'headers': CORS_HEADERS,
             'body': json.dumps({'message': f'Report for {org_name} sent to {email}'}),
         }
 
