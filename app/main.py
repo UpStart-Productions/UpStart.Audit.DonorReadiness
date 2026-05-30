@@ -30,6 +30,66 @@ from crawler import crawl
 from companion import run_seo_audit, run_a11y_audit, crawl_seo_inline, crawl_a11y_inline
 from prompt import generate_report
 from renderer import render_pdf
+from scorer import score as score_audit
+
+
+# -- S3 job store --------------------------------------------------------------
+
+AUDIT_BUCKET = os.environ.get('AUDIT_BUCKET', 'donor-readiness-audit-jobs')
+
+
+def _normalize_domain(url: str) -> str:
+    """Strip scheme, www., and trailing slash for use as S3 key prefix."""
+    url = url.strip().lower()
+    url = re.sub(r'^https?://', '', url)
+    url = re.sub(r'^www\.', '', url)
+    return url.rstrip('/')
+
+
+def s3_write_status(domain_key: str, status: str) -> None:
+    """Write {status} to donor-readiness-audit-jobs/<domain>/status.json."""
+    try:
+        import boto3
+        s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        s3.put_object(
+            Bucket=AUDIT_BUCKET,
+            Key=f'{domain_key}/status.json',
+            Body=json.dumps({'status': status}),
+            ContentType='application/json',
+        )
+    except Exception as e:
+        print(f'[s3] status write failed ({status}): {e}', file=sys.stderr)
+
+
+def s3_write_report(domain_key: str, report: dict) -> None:
+    """Write report JSON to S3."""
+    try:
+        import boto3
+        s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        s3.put_object(
+            Bucket=AUDIT_BUCKET,
+            Key=f'{domain_key}/report.json',
+            Body=json.dumps(report),
+            ContentType='application/json',
+        )
+    except Exception as e:
+        print(f'[s3] report write failed: {e}', file=sys.stderr)
+
+
+def s3_write_pdf(domain_key: str, pdf_path: str) -> None:
+    """Upload PDF to S3."""
+    try:
+        import boto3
+        s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        with open(pdf_path, 'rb') as f:
+            s3.put_object(
+                Bucket=AUDIT_BUCKET,
+                Key=f'{domain_key}/report.pdf',
+                Body=f,
+                ContentType='application/pdf',
+            )
+    except Exception as e:
+        print(f'[s3] PDF write failed: {e}', file=sys.stderr)
 
 
 def safe_filename(s: str) -> str:
@@ -280,22 +340,31 @@ def send_notification_email(
 
 # ── Core pipeline ──────────────────────────────────────────────────────────────
 
-def run_audit(url: str, output_dir: str = '/tmp') -> dict:
+def run_audit(url: str, output_dir: str = '/tmp', on_status=None) -> dict:
     """
-    Core audit pipeline: crawl → generate → render PDF.
-    Returns a dict with keys: pdf_path, report, signals.
+    Core audit pipeline: crawl → score → generate → render PDF.
+    Returns a dict with keys: pdf_path, report, signals, domain_key.
+
+    on_status: optional callable(status_str) called between pipeline stages.
+               Used by lambda_handler to write progress to S3.
     """
+    def _status(s):
+        if on_status:
+            on_status(s)
+
     domain = urlparse(url if '://' in url else 'https://' + url).netloc or url
     stem = safe_filename(domain)
+    domain_key = _normalize_domain(url)
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
     pdf_path = str(output_path / f'{stem}_donor_readiness.pdf')
-    model = os.environ.get('AUDIT_MODEL', 'claude-opus-4-6')
+    model = os.environ.get('AUDIT_MODEL', 'claude-sonnet-4-6')
 
     print(f'[audit] Starting: {url}  model={model}', file=sys.stderr)
 
+    _status('crawling')
     print('[1/3] Crawling (parallel: main + SEO + a11y)...', file=sys.stderr)
     t0 = time.time()
     from concurrent.futures import ThreadPoolExecutor
@@ -314,7 +383,12 @@ def run_audit(url: str, output_dir: str = '/tmp') -> dict:
     if a11y_summary:
         companion_stats['a11y'] = a11y_summary
 
+    _status('analyzing')
+    print('[1b/3] Scoring...', file=sys.stderr)
+    scores = score_audit(signals, companion_stats if companion_stats else None)
+
     print('[2/3] Generating report...', file=sys.stderr)
+    _status('generating')
     t1 = time.time()
     report = generate_report(
         signals,
@@ -323,9 +397,8 @@ def run_audit(url: str, output_dir: str = '/tmp') -> dict:
     )
     print(f'[2/3] Done in {time.time()-t1:.1f}s', file=sys.stderr)
 
-    # Stash companion stats in the report so the template can render them
-    if companion_stats:
-        report['_companion'] = companion_stats
+    # Merge scores into report
+    report['scores'] = scores
 
     print('[3/3] Rendering PDF...', file=sys.stderr)
     t2 = time.time()
@@ -333,7 +406,7 @@ def run_audit(url: str, output_dir: str = '/tmp') -> dict:
     print(f'[3/3] Done in {time.time()-t2:.1f}s', file=sys.stderr)
 
     print(f'[audit] Complete. PDF: {final_path}', file=sys.stderr)
-    return {'pdf_path': final_path, 'report': report, 'signals': signals}
+    return {'pdf_path': final_path, 'report': report, 'signals': signals, 'domain_key': domain_key}
 
 
 # ── Lambda handler ─────────────────────────────────────────────────────────────
@@ -366,8 +439,20 @@ def lambda_handler(event, context):
         print(json.dumps({'event': 'AUDIT_STARTED', 'url': url, 'email': email,
                           'firstName': first_name, 'lastName': last_name, 'role': role}))
 
-        result   = run_audit(url, output_dir='/tmp')
+        domain_key = _normalize_domain(url)
+        s3_write_status(domain_key, 'crawling')
+
+        result   = run_audit(
+            url,
+            output_dir='/tmp',
+            on_status=lambda s: s3_write_status(domain_key, s),
+        )
         org_name = result['report'].get('org_name', 'Your Organization')
+
+        # Write report + PDF to S3, then mark complete
+        s3_write_report(domain_key, result['report'])
+        s3_write_pdf(domain_key, result['pdf_path'])
+        s3_write_status(domain_key, 'complete')
 
         send_report_email(email, org_name, result['pdf_path'], first_name=first_name)
         send_notification_email(

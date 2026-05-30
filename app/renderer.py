@@ -28,16 +28,37 @@ def render_pdf(report: dict, output_path: str) -> str:
     Render the report dict to a PDF at output_path.
     Returns the absolute path to the written PDF.
     """
+    # Merge Claude's dimension narratives/issues with scorer's tier data
+    dim_names = {
+        'giving_experience':  'Giving Experience',
+        'impact_trust':       'Impact & Trust',
+        'visitor_activation': 'Visitor Activation',
+        'findability':        'Findability',
+        'accessibility':      'Accessibility',
+    }
+    scores = report.get('scores', {})
+    claude_dims = report.get('dimensions', {})
+    dimensions = []
+    for key, label in dim_names.items():
+        claude = claude_dims.get(key, {})
+        scored = scores.get('dimensions', {}).get(key, {})
+        dimensions.append({
+            'key':       key,
+            'label':     label,
+            'tier':      scored.get('tier', ''),
+            'score':     scored.get('score', None),
+            'narrative': claude.get('narrative', ''),
+            'issues':    claude.get('issues', []),
+        })
+
     context = {
-        'org_name': report.get('org_name', 'Your Organization'),
-        'domain': report.get('domain', report.get('_meta', {}).get('domain', '')),
-        # 'scores': report.get('scores', None),  # SCORING DISABLED — uncomment to re-enable
-        'opening': report.get('opening', ''),
-        'whats_working': report.get('whats_working', []),
-        'findings': report.get('findings', []),
-        'closing': report.get('closing', ''),
-        'companion': report.get('_companion', None),
-        'report_date': time.strftime('%-d %B %Y'),
+        'org_name':        report.get('org_name', 'Your Organization'),
+        'domain':          report.get('domain', report.get('_meta', {}).get('domain', '')),
+        'org_description': report.get('org_description', ''),
+        'whats_working':   report.get('whats_working', []),
+        'dimensions':      dimensions,
+        'overall_tier':    scores.get('overall', {}).get('tier', ''),
+        'report_date':     time.strftime('%-d %B %Y'),
     }
 
     env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
