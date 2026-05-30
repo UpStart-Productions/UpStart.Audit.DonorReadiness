@@ -2,7 +2,7 @@ name: Deploy to AWS Lambda
 
 on:
   push:
-    branches: [main]
+    branches: [scorecard]
 
 env:
   ECR_REPOSITORY: upstart/donor-readiness-audit
