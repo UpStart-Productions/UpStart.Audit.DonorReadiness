@@ -488,7 +488,12 @@ def lambda_handler(event, context):
     GET  ?domain=<domain>  → return audit status / report from S3
     POST {url, email, ...} → run audit pipeline
     """
-    method = event.get('httpMethod', 'POST').upper()
+    # HTTP API v2 puts method at requestContext.http.method
+    # REST API v1 puts it at httpMethod — support both
+    method = (
+        event.get('httpMethod')
+        or event.get('requestContext', {}).get('http', {}).get('method', 'POST')
+    ).upper()
 
     # OPTIONS preflight
     if method == 'OPTIONS':
