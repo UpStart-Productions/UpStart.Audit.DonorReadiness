@@ -32,7 +32,7 @@ def render_pdf(report: dict, output_path: str) -> str:
     dim_names = {
         'giving_experience':  'Giving Experience',
         'impact_trust':       'Impact & Trust',
-        'visitor_activation': 'Visitor Activation',
+        'visitor_activation': 'Volunteer Activation',
         'findability':        'Findability',
         'accessibility':      'Accessibility',
     }

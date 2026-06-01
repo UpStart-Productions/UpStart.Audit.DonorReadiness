@@ -293,88 +293,122 @@
        SCORE CARD
     ═══════════════════════════════ */
     .score-card {
-      background: #1A1828;
-      border-radius: 3px;
-      padding: 13px 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 14px 18px;
       margin-bottom: 22px;
       display: flex;
-      align-items: center;
-      gap: 18px;
+      gap: 0;
+      break-inside: avoid;
     }
 
     .score-overall {
-      flex-shrink: 0;
-      width: 0.78in;
-      text-align: center;
-      border-right: 1px solid rgba(255,255,255,0.1);
-      padding-right: 16px;
+      flex: 1;
+      border-right: 1px solid #e8e4f4;
+      padding-right: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
     }
 
-    .score-overall-label {
-      font-size: 5.5pt;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: rgba(255,255,255,0.4);
-      margin-bottom: 2px;
-    }
-
-    .score-overall-grade {
-      font-size: 32pt;
+    .score-overall-tier {
+      font-size: 22pt;
       font-weight: 900;
+      color: #1A1828;
       line-height: 1;
-      letter-spacing: -0.03em;
+      margin-bottom: 10px;
+      letter-spacing: -0.02em;
+    }
+
+    .score-track {
+      position: relative;
+      height: 6px;
+      background: #f3f4f6;
+      border-radius: 99px;
+      margin-bottom: 5px;
+    }
+
+    .score-track-fill {
+      position: absolute;
+      left: 0; top: 0;
+      height: 100%;
+      border-radius: 99px;
+    }
+
+    .score-track-dot {
+      position: absolute;
+      top: -4px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid #ffffff;
+    }
+
+    .score-track-labels {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .score-track-label {
+      font-size: 6pt;
+      font-weight: 600;
+      color: #9ca3af;
+    }
+
+    .score-track-label.active {
+      color: #1A1828;
+      font-weight: 700;
     }
 
     .score-dimensions {
       flex: 1;
+      padding-left: 20px;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      justify-content: center;
+      gap: 7px;
     }
 
     .score-row {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 8px;
-      line-height: 1.4;
-    }
-
-    .score-dim-grade {
-      font-size: 7.5pt;
-      font-weight: 900;
-      min-width: 20px;
-      text-align: right;
-      flex-shrink: 0;
     }
 
     .score-dim-label {
       font-size: 7.5pt;
+      font-weight: 600;
+      color: #4b5563;
+      min-width: 1.2in;
+      flex-shrink: 0;
+    }
+
+    .score-dim-bar-track {
+      flex: 1;
+      height: 4px;
+      background: #f3f4f6;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .score-dim-bar-fill {
+      height: 100%;
+      border-radius: 99px;
+    }
+
+    .score-dim-tier {
+      font-size: 7.5pt;
       font-weight: 700;
-      color: rgba(255,255,255,0.82);
-      min-width: 1.4in;
+      min-width: 0.65in;
+      text-align: right;
       flex-shrink: 0;
     }
 
-    .score-dim-sep {
-      font-size: 7pt;
-      color: rgba(255,255,255,0.2);
-      flex-shrink: 0;
-    }
-
-    .score-dim-note {
-      font-size: 7pt;
-      font-weight: 300;
-      color: rgba(255,255,255,0.42);
-      font-style: italic;
-    }
-
-    /* Grade colours */
-    .grade-a { color: #bdf352; }
-    .grade-b { color: #7dd3fc; }
-    .grade-c { color: #fcd34d; }
-    .grade-d { color: #fb923c; }
-    .grade-f { color: #f87171; }
+    /* Tier colours */
+    .tier-optimized   { color: #166534; }
+    .tier-established { color: #0c4a6e; }
+    .tier-developing  { color: #78350f; }
+    .tier-emerging    { color: #431407; }
 
     /* Space between purple Technical Audit panel and first finding card */
     .technical-section + .findings-section {
@@ -598,22 +632,48 @@
     <!-- Org Description -->
     <div class="opening">{{ org_description }}</div>
 
-    <!-- Overall Tier -->
+    <!-- Overall Readiness -->
     {% if overall_tier %}
+    {% set tier_colors = {
+      'Optimized':   {'bar': '#bdf352', 'pct': '87%'},
+      'Established': {'bar': '#7dd3fc', 'pct': '62%'},
+      'Developing':  {'bar': '#fcd34d', 'pct': '37%'},
+      'Emerging':    {'bar': '#fb923c', 'pct': '12%'},
+    } %}
+    {% set tier_labels = ['Emerging', 'Developing', 'Established', 'Optimized'] %}
+    {% set oc = tier_colors.get(overall_tier, {'bar': '#e5e7eb', 'pct': '12%'}) %}
+    <div class="section-label" style="margin-bottom:10px;">Overall Readiness</div>
     <div class="score-card">
+
+      <!-- Left: overall tier -->
       <div class="score-overall">
-        <div class="score-overall-label">Overall Readiness</div>
-        <div class="score-overall-grade" style="font-size:18pt;color:#bdf352;">{{ overall_tier }}</div>
+        <div class="score-overall-tier">{{ overall_tier }}</div>
+        <div class="score-track">
+          <div class="score-track-fill" style="width:{{ oc.pct }};background:{{ oc.bar }};"></div>
+          <div class="score-track-dot" style="left:calc({{ oc.pct }} - 7px);background:{{ oc.bar }};"></div>
+        </div>
+        <div class="score-track-labels">
+          {% for t in tier_labels %}
+          <span class="score-track-label{% if t == overall_tier %} active{% endif %}">{{ t }}</span>
+          {% endfor %}
+        </div>
       </div>
+
+      <!-- Right: per-dimension bars -->
       <div class="score-dimensions">
         {% for dim in dimensions %}
+        {% set dc = tier_colors.get(dim.tier, {'bar': '#e5e7eb', 'pct': '12%'}) %}
+        {% set tier_class = 'tier-' + dim.tier | lower %}
         <div class="score-row">
-          <span class="score-dim-label" style="color:rgba(255,255,255,0.82);">{{ dim.label }}</span>
-          <span class="score-dim-sep">·</span>
-          <span class="score-dim-note" style="color:{% if dim.tier == 'Optimized' %}#bdf352{% elif dim.tier == 'Established' %}#7dd3fc{% elif dim.tier == 'Developing' %}#fcd34d{% else %}#fb923c{% endif %};">{{ dim.tier }}</span>
+          <span class="score-dim-label">{{ dim.label }}</span>
+          <div class="score-dim-bar-track">
+            <div class="score-dim-bar-fill" style="width:{{ dc.pct }};background:{{ dc.bar }};"></div>
+          </div>
+          <span class="score-dim-tier {{ tier_class }}">{{ dim.tier }}</span>
         </div>
         {% endfor %}
       </div>
+
     </div>
     {% endif %}
 
