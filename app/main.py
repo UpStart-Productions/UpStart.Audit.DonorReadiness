@@ -289,6 +289,98 @@ def send_report_email(to_email: str, org_name: str, pdf_path: str, first_name: s
     print(f'[email] Report sent to {to_email}', file=sys.stderr)
 
 
+# ── UBO Pipeline Integration ───────────────────────────────────────────────────
+
+# Maps audit report upstart_service labels → UBO serviceInterests values
+_SERVICE_LABEL_MAP = {
+    'GrovLink — Nonprofit Mobile App': 'GrovLink',
+    'Websites That Work': 'Website',
+    'Data Clarity & Insight': 'Consulting',
+    'Custom App Development': 'Custom App',
+    'Tech Assessment': 'Tech Assessment',
+}
+
+
+def _derive_service_interests(report: dict) -> list[str]:
+    """Extract unique, normalized service interest labels from audit findings."""
+    seen = set()
+    result = []
+    for finding in report.get('findings', []):
+        raw_label = finding.get('upstart_service', {}).get('label', '')
+        normalized = _SERVICE_LABEL_MAP.get(raw_label, raw_label)
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            result.append(normalized)
+    return result
+
+
+def post_to_ubo_pipeline(
+    report: dict,
+    domain_key: str,
+    email: str,
+    first_name: str = '',
+    last_name: str = '',
+    role: str = '',
+    ran_at: str = '',
+) -> None:
+    """
+    POST the completed audit to UBO's /leads/ingest endpoint.
+    Creates a DISCOVERY-stage lead pre-populated from the audit data.
+    Fires and forgets — errors are logged but do not interrupt the audit.
+    """
+    import urllib.request
+
+    ubo_api_url = os.environ.get('UBO_API_URL', '').rstrip('/')
+    api_key     = os.environ.get('UBO_API_KEY', '')
+
+    if not ubo_api_url or not api_key:
+        print('[ubo] UBO_API_URL or UBO_API_KEY not set — skipping pipeline ingest.',
+              file=sys.stderr)
+        return
+
+    service_interests = _derive_service_interests(report)
+    pdf_s3_key = f'{domain_key}/report.pdf'
+
+    payload = {
+        'organization':      report.get('org_name', ''),
+        'website':           f'https://{domain_key}',
+        'auditReportKey':    pdf_s3_key,
+        'email':             email or None,
+        'firstName':         first_name or None,
+        'lastName':          last_name or None,
+        'role':              role or None,
+        'serviceInterests':  service_interests,
+        'auditDate':         ran_at,
+    }
+
+    # Strip None values so the DTO's @IsOptional() validators stay clean
+    payload = {k: v for k, v in payload.items() if v is not None}
+
+    try:
+        body = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(
+            f'{ubo_api_url}/leads/ingest',
+            data=body,
+            headers={
+                'Content-Type': 'application/json',
+                'x-api-key':    api_key,
+            },
+            method='POST',
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+            if result.get('duplicate'):
+                print(f'[ubo] Duplicate lead — org already in pipeline: '
+                      f'{result.get("organization")} (id={result.get("leadId")})',
+                      file=sys.stderr)
+            else:
+                print(f'[ubo] Lead created in pipeline: '
+                      f'{result.get("organization")} (id={result.get("leadId")})',
+                      file=sys.stderr)
+    except Exception as e:
+        print(f'[ubo] Pipeline ingest failed (non-fatal): {e}', file=sys.stderr)
+
+
 def send_notification_email(
     url: str,
     to_email: str,
@@ -546,6 +638,15 @@ def lambda_handler(event, context):
             url=url, to_email=email,
             first_name=first_name, last_name=last_name,
             role=role, org_name=org_name, ran_at=ran_at,
+        )
+        post_to_ubo_pipeline(
+            report=result['report'],
+            domain_key=result['domain_key'],
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            role=role,
+            ran_at=ran_at,
         )
 
         elapsed = round(time.time() - t_start, 1)
