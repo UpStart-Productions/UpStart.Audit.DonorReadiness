@@ -362,10 +362,23 @@ def post_to_ubo_pipeline(
     service_interests = _derive_service_interests(report)
     pdf_s3_key = f'{domain_key}/report.pdf'
 
+    # Generate a presigned URL (1 year) so the link is clickable from UBO
+    pdf_url = pdf_s3_key  # fallback to raw key if presign fails
+    try:
+        import boto3
+        s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        pdf_url = s3.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': AUDIT_BUCKET, 'Key': pdf_s3_key},
+            ExpiresIn=60 * 60 * 24 * 365,  # 1 year
+        )
+    except Exception as e:
+        print(f'[ubo] Could not generate presigned URL (non-fatal): {e}', file=sys.stderr)
+
     payload = {
-        'organization':      report.get('org_name', ''),
-        'website':           f'https://{domain_key}',
-        'auditReportKey':    pdf_s3_key,
+        'organization':    report.get('org_name', ''),
+        'website':         f'https://{domain_key}',
+        'auditReportUrl':  pdf_url,
         'email':             email or None,
         'firstName':         first_name or None,
         'lastName':          last_name or None,
