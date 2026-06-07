@@ -46,19 +46,40 @@ def _normalize_domain(url: str) -> str:
     return url.rstrip('/')
 
 
-def s3_write_status(domain_key: str, status: str) -> None:
-    """Write {status} to donor-readiness-audit-jobs/<domain>/status.json."""
+def s3_write_status(domain_key: str, status: str, **extra) -> None:
+    """Write {status, ...extra} to donor-readiness-audit-jobs/<domain>/status.json."""
     try:
         import boto3
         s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
         s3.put_object(
             Bucket=AUDIT_BUCKET,
             Key=f'{domain_key}/status.json',
-            Body=json.dumps({'status': status}),
+            Body=json.dumps({'status': status, **extra}),
             ContentType='application/json',
         )
     except Exception as e:
         print(f'[s3] status write failed ({status}): {e}', file=sys.stderr)
+
+
+def _check_domain_reachable(url: str) -> str | None:
+    """
+    Resolve the domain in url. Returns None if reachable, or an error
+    message string if DNS fails or the hostname is clearly invalid.
+    """
+    import socket
+    try:
+        parsed = urlparse(url if '://' in url else f'https://{url}')
+        host = parsed.hostname or ''
+        if not host or '.' not in host:
+            return f'"{url}" doesn\'t look like a valid website address.'
+        socket.getaddrinfo(host, None)
+        return None
+    except socket.gaierror:
+        host = urlparse(url if '://' in url else f'https://{url}').hostname or url
+        return (
+            f'We couldn\'t find a website at {host}. '
+            'Please double-check the URL and make sure the site is live, then try again.'
+        )
 
 
 def s3_write_report(domain_key: str, report: dict) -> None:
@@ -566,10 +587,13 @@ def _handle_status_request(event) -> dict:
             'body': json.dumps({'status': 'complete', 'report': report}),
         }
 
+    payload: dict = {'status': status}
+    if 'message' in status_data:
+        payload['message'] = status_data['message']
     return {
         'statusCode': 200,
         'headers': CORS_HEADERS,
-        'body': json.dumps({'status': status}),
+        'body': json.dumps(payload),
     }
 
 
@@ -614,11 +638,23 @@ def lambda_handler(event, context):
         if not email:
             return {'statusCode': 400, 'body': json.dumps({'error': 'email is required'})}
 
+        domain_key = _normalize_domain(url)
+
+        # DNS pre-check — fail fast before spending time crawling
+        dns_error = _check_domain_reachable(url)
+        if dns_error:
+            print(json.dumps({'event': 'AUDIT_INVALID_DOMAIN', 'url': url, 'reason': dns_error}))
+            s3_write_status(domain_key, 'error', message=dns_error)
+            return {
+                'statusCode': 200,
+                'headers': CORS_HEADERS,
+                'body': json.dumps({'message': dns_error}),
+            }
+
         ran_at = time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())
         print(json.dumps({'event': 'AUDIT_STARTED', 'url': url, 'email': email,
                           'firstName': first_name, 'lastName': last_name, 'role': role}))
 
-        domain_key = _normalize_domain(url)
         s3_write_status(domain_key, 'crawling')
 
         result   = run_audit(
