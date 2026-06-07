@@ -414,6 +414,10 @@ def extract_page_signals(page, url: str, role: str) -> dict:
     sig['donate_nav_text'] = next(
         (l['text'] for l in nav_links if DONATE_PATTERNS.search(l.get('text', ''))), None
     )
+    # Capture the actual href of the donate nav link (may be external)
+    sig['donate_nav_href'] = next(
+        (l['href'] for l in nav_links if DONATE_PATTERNS.search(l.get('text', ''))), None
+    )
 
     cta_buttons = page.eval_on_selector_all(
         'a, button',
@@ -689,6 +693,25 @@ def crawl(start_url: str) -> dict:
             k: [l['href'] for l in v] for k, v in categories.items()
         }
         signals['navigation']['pages_crawled'] = []
+
+        # ── External donate page handling ──────────────────────────────────
+        # If the donate nav link goes to an external platform (PayPal, Givebutter,
+        # etc.), discover_all_links() will have filtered it out. Visit it directly
+        # so we can extract real signals (recurring giving, preset amounts, etc.)
+        # rather than leaving donate_page empty and reporting false negatives.
+        external_donate_href = homepage_sig.get('donate_nav_href')
+        if (not categories['donate']
+                and external_donate_href
+                and not same_domain(external_donate_href, start_url)):
+            print(f'[crawl] donate      → {external_donate_href} (external platform)', file=sys.stderr)
+            if load_page(page, external_donate_href):
+                ext_donate_sig = extract_page_signals(page, page.url, 'donate')
+                ext_donate_sig.update(extract_donate_signals(page, start_url))
+                ext_donate_sig['donate_external_platform'] = True
+                signals['donate_page'] = ext_donate_sig
+                signals['navigation']['pages_crawled'].append(
+                    {'url': external_donate_href, 'category': 'donate_external', 'loaded': True}
+                )
 
         # ── Phase 2: Crawl selected pages ─────────────────────────────────
         all_page_sigs = [homepage_sig]

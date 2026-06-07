@@ -141,6 +141,15 @@ CRITICAL RULES:
 - issues may be an empty list [] if the dimension is strong and has no real problems
 - Every claim must be grounded in the signals provided -- do not invent details
 - If a signal is null or missing, do not mention that specific thing
+- If you see a blog post title, page title, or document name referenced in a page
+  excerpt but that page was not directly crawled, do not make any claim about what
+  it contains, whether it is readable, or what it does or does not include. You may
+  note it exists ("an annual report from 2022 is linked from the blog") but never
+  speculate about its content or quality
+- When a donation form is on an external platform (PayPal, Givebutter, etc.) and a
+  feature could not be verified, say so explicitly rather than stating it is absent.
+  "We could not verify whether monthly giving is offered" is accurate; "there is no
+  monthly giving option" is not
 - Do not produce scores, grades, percentages, or tier names -- those are calculated elsewhere
 - Raw page excerpts are provided at the end of the briefing. Use them to verify
   any content-dependent claims. If a structured signal contradicts the raw text,
@@ -229,6 +238,7 @@ def build_user_message(signals: dict, companion_stats: Optional[dict] = None) ->
     donate_type = donate.get('donate_type', 'page')
     donate_processor = donate.get('donate_processor', 'unknown')
     donate_same_domain = donate.get('donate_page_same_domain', True)
+    is_external_platform = donate.get('donate_external_platform', False)
 
     if donate_type == 'modal_or_overlay':
         donate_path_desc = (
@@ -236,9 +246,9 @@ def build_user_message(signals: dict, companion_stats: Optional[dict] = None) ->
             f"navigating to a separate page. The donation processor appears to be "
             f"{donate_processor}."
         )
-    elif not nav.get('donate'):
+    elif not nav.get('donate') and not is_external_platform and not hp.get('donate_in_nav'):
         donate_path_desc = "No clear donate button or link was found on the site."
-    elif not donate_same_domain:
+    elif not donate_same_domain or is_external_platform:
         donate_path_desc = (
             f"Clicking donate takes the visitor to a third-party domain "
             f"({donate_processor}). This is a trust-break moment -- the URL in the "
@@ -251,18 +261,20 @@ def build_user_message(signals: dict, companion_stats: Optional[dict] = None) ->
             f"powered by {donate_processor}."
         )
 
+    _offsite_note = 'donation form is on an external platform' if is_external_platform else 'donation form loads dynamically'
+
     recurring = donate.get('has_recurring_giving')
     recurring_desc = (
         'Monthly/recurring giving is offered' if recurring is True
         else 'No recurring/monthly giving option was detected' if recurring is False
-        else 'Could not verify (donation form loads dynamically)'
+        else f'Could not verify ({_offsite_note})'
     )
 
     amounts = donate.get('suggested_amounts', [])
     amounts_desc = (
         f"Suggested donation amounts shown: {', '.join(amounts)}" if amounts
         else 'No preset donation amounts detected' if donate.get('has_suggested_amounts') is False
-        else 'Preset amounts could not be verified (dynamic form)'
+        else f'Preset amounts could not be verified ({_offsite_note})'
     )
 
     impact_on_donate = donate.get('has_impact_framing_on_donate_page')
