@@ -541,6 +541,12 @@ CORS_HEADERS = {
     'Access-Control-Allow-Origin':  'https://heyupstart.com',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    # Status polling responses (esp. the 404 'pending' case) must never be
+    # cached by the browser/CDN -- otherwise repeated polls during the first
+    # run on a new domain keep returning a stale cached 404 even after the
+    # backend finishes and writes status='complete' to S3.
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Pragma': 'no-cache',
 }
 
 
