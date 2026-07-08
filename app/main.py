@@ -97,6 +97,26 @@ def s3_write_report(domain_key: str, report: dict) -> None:
         print(f'[s3] report write failed: {e}', file=sys.stderr)
 
 
+def s3_delete_cached_audit(domain_key: str) -> None:
+    """
+    Delete any existing status.json / report.json / report.pdf for a domain.
+    Used by the forceRefresh path so a re-submitted audit can't fall through
+    to a stale permalink-cached result — the GET status endpoint has no
+    expiration on its own, so without this, a domain that already completed
+    once will serve the same cached report forever.
+    """
+    try:
+        import boto3
+        s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        for key in ('status.json', 'report.json', 'report.pdf'):
+            try:
+                s3.delete_object(Bucket=AUDIT_BUCKET, Key=f'{domain_key}/{key}')
+            except Exception as e:
+                print(f'[s3] delete failed for {domain_key}/{key} (non-fatal): {e}', file=sys.stderr)
+    except Exception as e:
+        print(f'[s3] forceRefresh cache clear failed: {e}', file=sys.stderr)
+
+
 def s3_write_pdf(domain_key: str, pdf_path: str) -> None:
     """Upload PDF to S3."""
     try:
@@ -651,6 +671,9 @@ def lambda_handler(event, context):
         first_name = (body.get('firstName')  or '').strip()
         last_name  = (body.get('lastName')   or '').strip()
         role       = (body.get('role')       or '').strip()
+        # Accept either casing — curl/Postman testing tends to use snake_case,
+        # the website's own JS is more likely to send camelCase.
+        force_refresh = bool(body.get('forceRefresh') or body.get('force_refresh'))
 
         if not url:
             return {'statusCode': 400, 'body': json.dumps({'error': 'url is required'})}
@@ -658,6 +681,15 @@ def lambda_handler(event, context):
             return {'statusCode': 400, 'body': json.dumps({'error': 'email is required'})}
 
         domain_key = _normalize_domain(url)
+
+        # forceRefresh: wipe any cached status/report for this domain before
+        # running. Without this, a domain that already completed once keeps
+        # resolving to the same permalink-cached S3 object forever — useful
+        # for real visitors, a dead end for verifying an accuracy fix against
+        # a site that's already been audited.
+        if force_refresh:
+            print(json.dumps({'event': 'AUDIT_FORCE_REFRESH', 'url': url, 'domain': domain_key}))
+            s3_delete_cached_audit(domain_key)
 
         # DNS pre-check — fail fast before spending time crawling
         dns_error = _check_domain_reachable(url)
