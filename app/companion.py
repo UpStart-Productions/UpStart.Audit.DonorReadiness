@@ -19,6 +19,7 @@ Node.js dependencies (playwright, @axe-core/playwright, docx) are resolved via:
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -75,13 +76,23 @@ def _summarize_seo(crawl_data: dict) -> dict:
         sum(1 for img in p.get('images', []) if img.get('status') in ('missing', 'empty'))
         for p in pages
     )
+    # possible_js_rendering_gap is set per-page by seo_crawl.py's raw-HTML
+    # heuristic (SPA framework markers + near-empty visible text). Surface a
+    # count so the report can caveat findability findings for JS-heavy sites
+    # that this scanner (no JS execution) can't fully see.
+    js_gap_pages = sum(1 for p in pages if p.get('possible_js_rendering_gap'))
+
     return {
-        'pages_crawled':            len(pages),
-        'missing_meta_description': missing_meta,
-        'missing_h1':               missing_h1,
-        'images_missing_alt':       images_no_alt,
-        'has_sitemap':              crawl_data.get('sitemap_status', '') == 'found',
-        'has_robots':               crawl_data.get('robots_status', '')  == 'found',
+        'pages_crawled':                   len(pages),
+        'missing_meta_description':        missing_meta,
+        'missing_h1':                      missing_h1,
+        'images_missing_alt':               images_no_alt,
+        # sitemap_status/robots_status are raw HTTP status codes (int) from
+        # seo_crawl.fetch_status() — compare against 200, not the string
+        # 'found' (that comparison was always False, regardless of site).
+        'has_sitemap':                      crawl_data.get('sitemap_status') == 200,
+        'has_robots':                       crawl_data.get('robots_status')  == 200,
+        'possible_js_rendering_gap_pages':  js_gap_pages,
     }
 
 
@@ -253,11 +264,18 @@ def run_a11y_audit(url: str, output_dir: str) -> Optional[dict]:
 
 # ── Inline a11y crawl (Lambda-safe, Python Playwright + injected axe-core) ─────
 
-def crawl_a11y_inline(url: str, max_pages: int = 6) -> Optional[dict]:
+def crawl_a11y_inline(url: str, max_pages: int = 10) -> Optional[dict]:
     """
     Run WCAG 2.1 AA checks using Python Playwright + axe-core injected as an
     init script (bypasses CSP). Uses the same Chromium already in the container.
     Bundled axe.min.js must sit alongside companion.py in app/.
+
+    Pages are prioritized the same way the main donor-readiness crawler
+    prioritizes pages (donate, volunteer, about, impact first, discovered from
+    the homepage's own links) so a fixed page budget covers the pages that
+    matter most rather than whichever links happen to appear first in the
+    homepage's raw DOM order. No time-budget cutoff — intentionally lets a
+    scan run long rather than stop early on a slow page, per project decision.
     """
     axe_js = Path(__file__).parent / 'axe.min.js'
     if not axe_js.exists():
@@ -267,17 +285,30 @@ def crawl_a11y_inline(url: str, max_pages: int = 6) -> Optional[dict]:
     try:
         from urllib.parse import urlparse
         from playwright.sync_api import sync_playwright
+        # Reuse the main crawler's category regex so page selection here
+        # matches the same donate/volunteer/about/impact priority order.
+        from crawler import DONATE_URL, DONATE_PATTERNS, VOLUNTEER_URL, VOLUNTEER_PATTERNS, ABOUT_URL, IMPACT_URL
 
         axe_source = axe_js.read_text(encoding='utf-8')
 
         start_url = url.rstrip('/')
         if not start_url.startswith('http'):
             start_url = 'https://' + start_url
-        base_origin = '{0.scheme}://{0.netloc}'.format(urlparse(start_url))
 
-        visited = set()
-        queue   = [start_url]
+        def link_priority(href: str, text: str) -> int:
+            """Lower number = higher priority. Mirrors crawler.py's category order."""
+            if DONATE_URL.search(href) or DONATE_PATTERNS.search(text):
+                return 0
+            if VOLUNTEER_URL.search(href) or VOLUNTEER_PATTERNS.search(text):
+                return 1
+            if ABOUT_URL.search(href) or re.search(r'\b(about|mission|team|board|staff)\b', text, re.I):
+                return 2
+            if IMPACT_URL.search(href) or re.search(r'\b(impact|outcomes|results|report)\b', text, re.I):
+                return 3
+            return 4
+
         page_results = []
+        failed_urls  = []
 
         with sync_playwright() as pw:
             browser = pw.chromium.launch(
@@ -290,21 +321,15 @@ def crawl_a11y_inline(url: str, max_pages: int = 6) -> Optional[dict]:
             ctx.add_init_script(axe_source)
             pg = ctx.new_page()
 
-            while queue and len(visited) < max_pages:
-                current = queue.pop(0)
-                if current in visited:
-                    continue
-                visited.add(current)
-
+            def scan_page(target_url: str) -> None:
                 try:
-                    pg.goto(current, wait_until='networkidle', timeout=30000)
+                    pg.goto(target_url, wait_until='networkidle', timeout=30000)
                     pg.wait_for_timeout(300)
 
                     violations = pg.evaluate("""
                         async () => {
                             const r = await axe.run({
-                                runOnly: { type: 'tag',
-                                           values: ['wcag2a', 'wcag2aa', 'best-practice'] }
+                                runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] }
                             });
                             return r.violations.map(v => ({
                                 id:     v.id,
@@ -313,35 +338,60 @@ def crawl_a11y_inline(url: str, max_pages: int = 6) -> Optional[dict]:
                             }));
                         }
                     """)
-                    page_results.append({'url': current, 'violations': violations})
-
-                    # Discover same-origin links for next iterations
-                    if len(visited) < max_pages:
-                        links = pg.evaluate("""
-                            () => Array.from(document.querySelectorAll('a[href]'))
-                                .map(a => a.href.split('#')[0].replace(/\\/$/, ''))
-                                .filter(h => h.startsWith(window.location.origin))
-                        """)
-                        for link in links:
-                            if link and link not in visited and link not in queue:
-                                queue.append(link)
-
+                    page_results.append({'url': target_url, 'violations': violations})
                 except Exception as page_err:
-                    print(f'[companion:a11y] {current}: {page_err}', file=sys.stderr)
+                    failed_urls.append(target_url)
+                    print(f'[companion:a11y] {target_url}: {page_err}', file=sys.stderr)
+
+            # ── Homepage first ──
+            scan_page(start_url)
+
+            # ── Discover links from the homepage, then prioritize the rest ──
+            try:
+                links = pg.evaluate("""
+                    () => Array.from(document.querySelectorAll('a[href]'))
+                        .map(a => ({
+                            href: a.href.split('#')[0].replace(/\\/$/, ''),
+                            text: (a.textContent || '').trim()
+                        }))
+                        .filter(l => l.href.startsWith(window.location.origin))
+                """)
+            except Exception as e:
+                print(f'[companion:a11y] Link discovery failed: {e}', file=sys.stderr)
+                links = []
+
+            seen = {start_url}
+            candidates = []
+            for link in links:
+                href = link.get('href')
+                text = link.get('text', '')
+                if not href or href in seen:
+                    continue
+                seen.add(href)
+                candidates.append((link_priority(href, text), href))
+
+            candidates.sort(key=lambda c: c[0])
+
+            for _, href in candidates:
+                if len(page_results) + len(failed_urls) >= max_pages:
+                    break
+                scan_page(href)
 
             browser.close()
 
         all_violations = [v for pr in page_results for v in pr.get('violations', [])]
         summary = {
-            'pages_crawled':     len(page_results),
-            'total_violations':  len(all_violations),
-            'critical':          sum(1 for v in all_violations if v.get('impact') == 'critical'),
-            'serious':           sum(1 for v in all_violations if v.get('impact') == 'serious'),
-            'moderate':          sum(1 for v in all_violations if v.get('impact') == 'moderate'),
+            'pages_crawled':      len(page_results),
+            'pages_failed':       len(failed_urls),
+            'total_violations':   len(all_violations),
+            'critical':           sum(1 for v in all_violations if v.get('impact') == 'critical'),
+            'serious':            sum(1 for v in all_violations if v.get('impact') == 'serious'),
+            'moderate':           sum(1 for v in all_violations if v.get('impact') == 'moderate'),
             'unique_issue_types': len({v.get('id') for v in all_violations}),
         }
         print(
-            f'[companion:a11y] {summary["pages_crawled"]} pages — '
+            f'[companion:a11y] {summary["pages_crawled"]} pages scanned '
+            f'({summary["pages_failed"]} failed) — '
             f'{summary["critical"]} critical, {summary["serious"]} serious violations',
             file=sys.stderr,
         )

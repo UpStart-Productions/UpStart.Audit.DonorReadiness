@@ -69,11 +69,17 @@ def extract_page_data(html, url, base_domain):
     m = re.search(r'<title[^>]*>(.*?)</title>', html, re.DOTALL | re.IGNORECASE)
     data["title"] = re.sub(r'<[^>]+>', '', m.group(1)).strip() if m else None
 
-    # Meta description
-    m = re.search(r'<meta\s+name=["\']description["\']\s+content=["\']([^"\']*)["\']', html, re.IGNORECASE)
-    if not m:
-        m = re.search(r'<meta\s+content=["\']([^"\']*)["\'][^>]+name=["\']description["\']', html, re.IGNORECASE)
-    data["meta_description"] = m.group(1).strip() if m else None
+    # Meta description — parse each <meta> tag as a whole and check its
+    # attributes independently of order. The previous version assumed
+    # name="description" and content="..." were adjacent in one of two fixed
+    # orders, which misses real tags with other attributes in between
+    # (e.g. <meta name="description" property="og:description" content="...">).
+    data["meta_description"] = None
+    for tag in re.findall(r'<meta\b[^>]*>', html, re.IGNORECASE):
+        if re.search(r'name=["\']description["\']', tag, re.IGNORECASE):
+            cm = re.search(r'content=["\']([^"\']*)["\']', tag, re.IGNORECASE)
+            data["meta_description"] = cm.group(1).strip() if cm else ''
+            break
 
     # Canonical
     m = re.search(r'<link\s+rel=["\']canonical["\']\s+href=["\']([^"\']*)["\']', html, re.IGNORECASE)
@@ -148,6 +154,21 @@ def extract_page_data(html, url, base_domain):
     # robots meta
     m = re.search(r'<meta\s+name=["\']robots["\']\s+content=["\']([^"\']*)["\']', html, re.IGNORECASE)
     data["robots_meta"] = m.group(1) if m else None
+
+    # Rough heuristic for JS-rendered (SPA-style) pages. This crawler fetches
+    # raw HTML with no JavaScript execution — fine for server-rendered sites
+    # (Squarespace, Wix, WordPress), but a client-rendered page will look
+    # nearly empty here even though a real visitor sees full content. Flag
+    # pages that show common framework mount-point markers combined with very
+    # little actual visible text, so downstream reporting can caveat findings
+    # for those pages instead of stating them as fact.
+    visible_text = re.sub(r'<[^>]+>', ' ', body_clean)
+    visible_text = re.sub(r'\s+', ' ', visible_text).strip()
+    spa_markers = bool(re.search(
+        r'id=["\'](root|app|___gatsby)["\']|data-reactroot|ng-version|__NEXT_DATA__',
+        html, re.IGNORECASE
+    ))
+    data["possible_js_rendering_gap"] = bool(spa_markers and len(visible_text) < 200)
 
     return data
 

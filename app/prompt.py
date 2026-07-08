@@ -191,6 +191,14 @@ def _companion_block(companion_stats: dict) -> str:
         lines.append(f'  Pages missing H1 heading: {missing_h1} of {pages}')
         missing_alt = seo.get('images_missing_alt', 0)
         lines.append(f'  Images missing alt text: {missing_alt}')
+        js_gap = seo.get('possible_js_rendering_gap_pages', 0)
+        if js_gap:
+            lines.append(
+                f'  NOTE: {js_gap} page(s) appear to render primarily via JavaScript. '
+                f'This scan does not execute JavaScript, so meta description, H1, and '
+                f'alt-text findings for those specific pages may be incomplete -- '
+                f'hedge language for findability claims that could be affected.'
+            )
 
     a11y = companion_stats.get('a11y')
     if a11y:
@@ -201,6 +209,13 @@ def _companion_block(companion_stats: dict) -> str:
         lines.append(f'  Moderate violations: {a11y.get("moderate", 0)}')
         lines.append(f'  Total violations: {a11y.get("total_violations", 0)} '
                      f'across {a11y.get("unique_issue_types", 0)} distinct issue types')
+        pages_failed = a11y.get('pages_failed', 0)
+        if pages_failed:
+            lines.append(
+                f'  NOTE: {pages_failed} page(s) could not be scanned and are excluded '
+                f'from the counts above. Present this as partial coverage, not a complete '
+                f'site-wide accessibility count.'
+            )
 
     return '\n'.join(lines)
 

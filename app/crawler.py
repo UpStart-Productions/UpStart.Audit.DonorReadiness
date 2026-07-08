@@ -34,7 +34,9 @@ DONATE_PATTERNS = re.compile(
     r'\b(donate|give|support us|make a gift|contribute|gift|ways to give)\b', re.I
 )
 VOLUNTEER_PATTERNS = re.compile(
-    r'\b(volunteer|get involved|join us|help out)\b', re.I
+    r'\b(volunteer|get involved|join us|help out|become a mentor|'
+    r'mentor(s|ing)?|foster(ing)?|tutor(s|ing)?|coach(es|ing)?|ambassador(s)?)\b',
+    re.I
 )
 EMAIL_PATTERNS = re.compile(
     r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}'
@@ -60,7 +62,8 @@ CHARITY_BADGE_PATTERNS = re.compile(
 PAYMENT_PROCESSOR_PATTERNS = re.compile(
     r'(classy\.org|bloomerang|donorbox|paypal\.com|stripe\.com|qgiv|'
     r'networkforgood|razoo|fundly|mightycause|salesforce\.org|'
-    r'double\.giving|every\.org|givebutter|donately|mightycause)',
+    r'double\.giving|every\.org|givebutter|donately|mightycause|'
+    r'keela|kindful|funraise)',
     re.I
 )
 VOLUNTEER_PLATFORM_PATTERNS = re.compile(
@@ -71,7 +74,11 @@ VOLUNTEER_PLATFORM_PATTERNS = re.compile(
 
 # URL path patterns for link categorization
 DONATE_URL    = re.compile(r'/(donate|give|ways.?to.?give|gift|support|contribut|fund|campaign)', re.I)
-VOLUNTEER_URL = re.compile(r'/(volunteer|get.?involved|join|help)', re.I)
+# Note: no leading "/" requirement here (unlike the other *_URL patterns below).
+# Concatenated slugs like "/becomeamentor" don't have a slash immediately
+# before "mentor", so an anchored pattern silently misses them. A plain
+# substring search is more permissive but catches this real-world case.
+VOLUNTEER_URL = re.compile(r'(volunteer|get.?involved|join|help|mentor|foster|tutor|coach|ambassador)', re.I)
 ABOUT_URL     = re.compile(r'/(about|who.?we|our.?story|foundation|mission|values|team|board|staff|history|leadership)', re.I)
 IMPACT_URL    = re.compile(r'/(impact|outcome|result|annual.?report|hope.?report|report|financials?|data|numbers|stories)', re.I)
 NEWSLETTER_URL = re.compile(r'/(newsletter|sign.?up|subscribe|email.?list)', re.I)
@@ -207,21 +214,26 @@ def categorize_links(links: list) -> dict:
     for link in links:
         href = link['href']
         text = link['text']
+        # Match URL patterns against the path only, never the full href.
+        # Matching the full href risks false positives against the domain
+        # name itself (e.g. VOLUNTEER_URL's "mentor" keyword would otherwise
+        # match "rvmentoring.org" on every single page of that site).
+        path = urlparse(href).path
 
-        if DONATE_URL.search(href) or DONATE_PATTERNS.search(text):
+        if DONATE_URL.search(path) or DONATE_PATTERNS.search(text):
             categories['donate'].append(link)
-        elif VOLUNTEER_URL.search(href) or VOLUNTEER_PATTERNS.search(text):
+        elif VOLUNTEER_URL.search(path) or VOLUNTEER_PATTERNS.search(text):
             categories['volunteer'].append(link)
-        elif ABOUT_URL.search(href) or re.search(
+        elif ABOUT_URL.search(path) or re.search(
                 r'\b(about|mission|team|board|staff|history|foundation|leadership)\b', text, re.I):
             categories['about'].append(link)
-        elif IMPACT_URL.search(href) or re.search(
+        elif IMPACT_URL.search(path) or re.search(
                 r'\b(impact|outcomes|results|report|financials|data|stories|numbers)\b', text, re.I):
             categories['impact'].append(link)
-        elif NEWSLETTER_URL.search(href) or re.search(
+        elif NEWSLETTER_URL.search(path) or re.search(
                 r'\b(newsletter|sign.?up|subscribe)\b', text, re.I):
             categories['newsletter'].append(link)
-        elif CONTACT_URL.search(href) or re.search(
+        elif CONTACT_URL.search(path) or re.search(
                 r'\b(contact|reach us|get in touch|location)\b', text, re.I):
             categories['contact'].append(link)
         else:
@@ -249,26 +261,29 @@ def categorize_file_links(file_links: list) -> list:
     for link in file_links:
         href = link['href']
         text = link.get('text', '') or ''
+        # Match against the path only — see note in categorize_links() about
+        # why matching the full href risks false positives against the domain.
+        path = urlparse(href).path
 
         ext_match = FILE_EXT_PATTERN.search(href)
         ext = ext_match.group(1).lower() if ext_match else ''
         file_type = type_map.get(ext, 'other')
 
         # Categorize by URL path and link text (same signals as categorize_links)
-        if DONATE_URL.search(href) or DONATE_PATTERNS.search(text):
+        if DONATE_URL.search(path) or DONATE_PATTERNS.search(text):
             category = 'donate'
-        elif (VOLUNTEER_URL.search(href) or VOLUNTEER_PATTERNS.search(text)
-              or re.search(r'(application|apply)', href, re.I)
+        elif (VOLUNTEER_URL.search(path) or VOLUNTEER_PATTERNS.search(text)
+              or re.search(r'(application|apply)', path, re.I)
               or re.search(r'\b(application|apply)\b', text, re.I)):
             category = 'volunteer'
-        elif (IMPACT_URL.search(href) or re.search(
+        elif (IMPACT_URL.search(path) or re.search(
                 r'\b(impact|outcomes|results|report|financials|data|stories|numbers|annual)\b',
                 text, re.I)):
             category = 'impact'
-        elif ABOUT_URL.search(href) or re.search(
+        elif ABOUT_URL.search(path) or re.search(
                 r'\b(about|mission|team|board|staff|history|foundation|leadership)\b', text, re.I):
             category = 'about'
-        elif NEWSLETTER_URL.search(href) or re.search(
+        elif NEWSLETTER_URL.search(path) or re.search(
                 r'\b(newsletter|sign.?up|subscribe)\b', text, re.I):
             category = 'newsletter'
         else:
@@ -450,17 +465,52 @@ def extract_donate_signals(page, original_url: str) -> dict:
     sig['donate_processor'] = processor_match.group(0) if processor_match else 'unknown'
 
     full_text = page.inner_text('body') if page.query_selector('body') else ''
-    sig['has_recurring_giving'] = bool(
-        re.search(r'\b(monthly|recurring|sustaining|regular)\b', full_text, re.I)
-    )
 
-    amount_buttons = page.eval_on_selector_all(
+    # Donation widgets are frequently embedded via a cross-origin iframe
+    # (Keela, Kindful, Bloomerang, etc.) rather than injected into the main
+    # document. Querying `page` alone only sees the top-level document and
+    # silently misses everything inside that iframe — amounts, impact framing,
+    # and recurring-giving copy included. Check every frame attached to the
+    # page and merge results, so a same-domain page with an iframe-embedded
+    # widget doesn't read as having none of these features.
+    amount_buttons = list(page.eval_on_selector_all(
         'button, label, [class*="amount"], [class*="preset"]',
         'els => els.map(e => e.innerText.trim()).filter(t => /^\\$\\d+/.test(t))'
+    ))
+    combined_text = full_text
+
+    for frame in page.frames:
+        if frame == page.main_frame:
+            continue
+        try:
+            frame_amounts = frame.eval_on_selector_all(
+                'button, label, [class*="amount"], [class*="preset"]',
+                'els => els.map(e => e.innerText.trim()).filter(t => /^\\$\\d+/.test(t))'
+            )
+            amount_buttons.extend(frame_amounts)
+
+            frame_text = frame.inner_text('body') if frame.query_selector('body') else ''
+            if frame_text:
+                combined_text += ' ' + frame_text
+
+            if sig['donate_processor'] == 'unknown':
+                frame_processor_match = (
+                    PAYMENT_PROCESSOR_PATTERNS.search(frame.content())
+                    or PAYMENT_PROCESSOR_PATTERNS.search(frame.url or '')
+                )
+                if frame_processor_match:
+                    sig['donate_processor'] = frame_processor_match.group(0)
+        except Exception:
+            # Cross-origin frame not yet settled, detached, or otherwise
+            # inaccessible — skip it rather than failing the whole extraction.
+            continue
+
+    sig['has_recurring_giving'] = bool(
+        re.search(r'\b(monthly|recurring|sustaining|regular)\b', combined_text, re.I)
     )
-    sig['suggested_amounts']               = amount_buttons[:6]
+    sig['suggested_amounts']               = list(dict.fromkeys(amount_buttons))[:6]
     sig['has_suggested_amounts']           = len(amount_buttons) > 0
-    sig['has_impact_framing_on_donate_page'] = bool(IMPACT_PATTERNS.search(full_text))
+    sig['has_impact_framing_on_donate_page'] = bool(IMPACT_PATTERNS.search(combined_text))
     sig['clicks_from_homepage']            = 1
 
     return sig

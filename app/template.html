@@ -160,7 +160,6 @@
       font-size: 10.5pt;
       font-weight: 300;
       color: #3a3060;
-      font-style: italic;
       line-height: 1.65;
     }
 
@@ -195,6 +194,29 @@
       position: absolute;
       left: 0;
       color: #7868C0;
+      font-weight: 700;
+    }
+
+    /* ── Issues list (dimension "not working" items) ──
+       Deliberately separate from .working-list — red X icon, dark body
+       text, instead of a checkmark and red text — so it reads as a distinct
+       item type rather than a same-shaped list in a different color. */
+    .issues-list { list-style: none; padding: 0; }
+
+    .issues-list li {
+      padding: 4px 0 4px 20px;
+      position: relative;
+      font-size: 10pt;
+      font-weight: 300;
+      color: #3a3a3a;
+      line-height: 1.6;
+    }
+
+    .issues-list li::before {
+      content: '✗';
+      position: absolute;
+      left: 0;
+      color: #af1b23;
       font-weight: 700;
     }
 
@@ -697,9 +719,9 @@
           <div class="finding-title">{{ dim.label }}</div>
           <div class="finding-body"><p>{{ dim.narrative }}</p></div>
           {% if dim.issues %}
-          <ul class="working-list" style="margin-top:8px;">
+          <ul class="issues-list" style="margin-top:8px;">
             {% for issue in dim.issues %}
-            <li style="color:#af1b23;">{{ issue }}</li>
+            <li>{{ issue }}</li>
             {% endfor %}
           </ul>
           {% endif %}
