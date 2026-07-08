@@ -17,6 +17,8 @@ from typing import Optional
 
 import anthropic
 
+from config import DEFAULT_MODEL
+
 
 # -- System prompt -------------------------------------------------------------
 
@@ -163,6 +165,47 @@ CRITICAL RULES:
   * 'donate' category, any file: Flag as friction -- a donate link leading to a download
     is confusing
   * Video files: Positive for storytelling -- not worth flagging as an issue
+
+ANTI-CONTRADICTION RULES (CRITICAL -- READ CAREFULLY):
+These rules exist because past reports have stated the literal opposite of a
+signal that was explicitly provided (e.g. claiming "no HTTPS" when the site
+was crawled at an https:// URL, claiming a donation widget "redirects to a
+third-party domain" when it was an on-page embed, claiming a page "leads
+nowhere" when a signal showed a working destination URL). This is worse than
+omitting a detail -- it is actively false, and it is the single most damaging
+failure mode this report can have. Follow these rules exactly:
+
+- Before writing ANY negative claim ("no X", "X is missing", "X is broken",
+  "X redirects/leads away", "X fails", "X is not available"), find the
+  specific signal or raw-text field that claim depends on and confirm it
+  actually supports the negative. If that field is null, "unclear", or not
+  provided, do NOT make the negative claim -- omit it entirely or, if it's
+  important, phrase it as something you could not verify.
+- Never state that a page, form, or link "leads nowhere," "goes to a dead
+  end," or "doesn't work" unless a signal explicitly says the destination
+  is broken/missing. A URL being present in a signal means it exists and
+  works -- you have no basis to say otherwise.
+- Never state a form or donate flow "redirects to a third-party domain" or
+  "changes the URL" unless donate_page_same_domain is explicitly false or
+  donate_external_platform is explicitly true. An embedded widget on the
+  org's own domain is not a redirect, even if it's powered by a third-party
+  processor like Keela, Bloomerang, or Givebutter.
+- Never state "no HTTPS" or "the site is not secure" unless trust.https is
+  explicitly false. If the domain in the SITE line begins with https://,
+  the site has HTTPS -- do not contradict that under any circumstance.
+- Never state a video, image, or embedded element is "broken" unless a
+  signal explicitly reports a load failure. Its mere presence as a file
+  link or media element is not evidence it is broken.
+- Never state volunteer roles, time commitments, or program details are
+  "not described" if the RAW PAGE CONTENT for that page contains descriptive
+  text about the program, even informally phrased (e.g. a line about pausing
+  new applications still proves the page describes program status).
+- When the raw page excerpts and a structured signal disagree, the rule
+  earlier in this prompt already tells you to trust the raw text -- that
+  rule exists specifically to catch cases like these. Apply it.
+- If, after this check, you are not fully confident a negative claim is
+  true, leave it out. A shorter, more cautious report is far better than
+  one with a single confident false claim.
 """
 
 
@@ -179,6 +222,17 @@ def _companion_block(companion_stats: dict) -> str:
              'and concrete issues for those two dimensions.']
 
     seo = companion_stats.get('seo')
+    if not seo:
+        lines.append('')
+        lines.append(
+            'SEO SCAN: not available for this run (the scan failed or was skipped). '
+            'You have NO sitemap, robots.txt, meta description, H1, or alt-text data. '
+            'Do not state or imply any specific finding about these (e.g. do not say '
+            '"no sitemap" or "pages are missing meta descriptions"). Write the '
+            'findability narrative only from what is visible in the raw page content '
+            'and navigation signals provided elsewhere, and keep issues limited to '
+            'what you can actually support.'
+        )
     if seo:
         lines.append('')
         lines.append(f'SEO SCAN ({seo.get("pages_crawled", "?")} pages crawled):')
@@ -201,6 +255,15 @@ def _companion_block(companion_stats: dict) -> str:
             )
 
     a11y = companion_stats.get('a11y')
+    if not a11y:
+        lines.append('')
+        lines.append(
+            'ACCESSIBILITY SCAN: not available for this run (the scan failed or was '
+            'skipped). You have NO WCAG violation data. Do not state or imply any '
+            'specific accessibility finding or count. Either omit specific claims for '
+            'this dimension or note plainly that a technical accessibility scan could '
+            'not be completed for this review.'
+        )
     if a11y:
         lines.append('')
         lines.append(f'ACCESSIBILITY SCAN (WCAG 2.1 AA, {a11y.get("pages_crawled", "?")} pages):')
@@ -388,9 +451,12 @@ DONATE PAGE (first 1000 chars):
 {donate.get('raw_text', '')[:1000] or '(not available)'}
 """.strip()
 
-    companion_section = ''
-    if companion_stats:
-        companion_section = '\n\n' + _companion_block(companion_stats)
+    # Always run this block, even when companion_stats is empty/None -- an
+    # empty dict now still produces explicit "not available" hedge language
+    # for findability/accessibility instead of silently omitting the section
+    # (which previously let Claude write those two dimensions with zero
+    # grounding whenever both companion scans failed).
+    companion_section = '\n\n' + _companion_block(companion_stats or {})
 
     return (
         f"Please write the Donor Readiness assessment for this nonprofit website.\n\n"
@@ -405,7 +471,7 @@ DONATE PAGE (first 1000 chars):
 
 def generate_report(
     signals: dict,
-    model: str = 'claude-sonnet-4-6',
+    model: str = DEFAULT_MODEL,
     companion_stats: Optional[dict] = None,
 ) -> dict:
     """

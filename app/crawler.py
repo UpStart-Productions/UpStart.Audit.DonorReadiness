@@ -607,6 +607,60 @@ def check_mobile_donate_cta(page, url: str) -> bool:
     return visible > 0
 
 
+# ── Multi-page-per-category merge ─────────────────────────────────────────────
+
+def _or_maybe(a, b):
+    """OR two tri-state booleans (True/False/None), treating None as unknown
+    rather than False so a real negative isn't invented from two unknowns."""
+    if a is None and b is None:
+        return None
+    return bool(a) or bool(b)
+
+
+def merge_page_sig(existing: dict, new: dict) -> dict:
+    """
+    Merge a newly-crawled page's signals into an already-stored category
+    signal (donate_page / volunteer_page / pages['about'] / pages['impact']).
+
+    Previously, only the FIRST page visited in a category was kept and every
+    additional matching page in that same category was crawled and then
+    silently discarded. On a site with more than one volunteer-ish page
+    (e.g. "Become a Mentor" and "Become a Mentee"), whichever page happened
+    to load first became the only source of raw text for that dimension --
+    if the actual answer (specific roles, program status, a form) was on
+    the second page, it never reached the prompt and Claude had no way to
+    know it existed. Merging keeps all of it.
+    """
+    if not existing:
+        return dict(new)
+    merged = dict(existing)
+
+    for text_field, cap in (('raw_text', 4000), ('body_preview', 2000)):
+        combined = ' '.join(x for x in (existing.get(text_field), new.get(text_field)) if x)
+        merged[text_field] = combined[:cap]
+
+    for list_field in ('volunteer_roles_listed', 'volunteer_list_content',
+                        'impact_stats', 'h1', 'h2s'):
+        if existing.get(list_field) or new.get(list_field):
+            merged[list_field] = list(dict.fromkeys(
+                (existing.get(list_field) or []) + (new.get(list_field) or [])
+            ))
+
+    # Prefer the stronger volunteer_signup_type rather than whichever loaded first
+    rank = {'form': 2, 'email_only': 1, 'none_found': 0}
+    if 'volunteer_signup_type' in existing or 'volunteer_signup_type' in new:
+        e_type = existing.get('volunteer_signup_type', 'none_found')
+        n_type = new.get('volunteer_signup_type', 'none_found')
+        merged['volunteer_signup_type'] = e_type if rank.get(e_type, 0) >= rank.get(n_type, 0) else n_type
+
+    for bool_field in ('has_specific_volunteer_roles', 'has_recurring_giving',
+                        'has_suggested_amounts', 'has_impact_framing_on_donate_page'):
+        if bool_field in existing or bool_field in new:
+            merged[bool_field] = _or_maybe(existing.get(bool_field), new.get(bool_field))
+
+    return merged
+
+
 # ── Signal consolidation ──────────────────────────────────────────────────────
 
 def consolidate_signals(signals: dict, all_page_sigs: list) -> dict:
@@ -776,15 +830,16 @@ def crawl(start_url: str) -> dict:
                 {'url': url, 'category': category, 'loaded': page_sig.get('loaded', True)}
             )
 
-            # Populate legacy signal keys for prompt.py compatibility
-            if category == 'donate' and not signals['donate_page']:
-                signals['donate_page'] = page_sig
-            elif category == 'volunteer' and not signals['volunteer_page']:
-                signals['volunteer_page'] = page_sig
-            elif category == 'about' and 'about' not in signals['pages']:
-                signals['pages']['about'] = page_sig
-            elif category == 'impact' and 'impact' not in signals['pages']:
-                signals['pages']['impact'] = page_sig
+            # Populate legacy signal keys for prompt.py compatibility.
+            # Merge rather than "keep first" -- see merge_page_sig() docstring.
+            if category == 'donate':
+                signals['donate_page'] = merge_page_sig(signals['donate_page'], page_sig)
+            elif category == 'volunteer':
+                signals['volunteer_page'] = merge_page_sig(signals['volunteer_page'], page_sig)
+            elif category == 'about':
+                signals['pages']['about'] = merge_page_sig(signals['pages'].get('about', {}), page_sig)
+            elif category == 'impact':
+                signals['pages']['impact'] = merge_page_sig(signals['pages'].get('impact', {}), page_sig)
 
         # ── Modal donate fallback ──────────────────────────────────────────
         # If no donate page was found (donate link was a homepage modal/overlay),

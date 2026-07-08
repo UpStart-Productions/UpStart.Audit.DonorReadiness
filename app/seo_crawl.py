@@ -182,7 +182,11 @@ def discover_pages(base_url, base_domain):
     sitemap_html = fetch(sitemap_url)
     sitemap_status = fetch_status(sitemap_url)
 
-    if sitemap_status == 200 and '<url>' in sitemap_html.lower():
+    # Accept both a regular urlset sitemap (<url><loc>...) and a sitemap
+    # index (<sitemap><loc>...) -- checking only for "<url>" made a valid
+    # sitemap index file read as "no sitemap found", a false negative on the
+    # findability dimension for any site large enough to split its sitemap.
+    if sitemap_status == 200 and '<loc>' in sitemap_html.lower():
         locs = re.findall(r'<loc>(.*?)</loc>', sitemap_html)
         for loc in locs:
             parsed = urllib.parse.urlparse(loc.strip())

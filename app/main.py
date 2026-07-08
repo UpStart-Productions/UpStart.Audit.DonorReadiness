@@ -8,7 +8,7 @@ Supports two execution modes:
 
 Environment:
     ANTHROPIC_API_KEY   required
-    AUDIT_MODEL         optional, default: claude-opus-4-6
+    AUDIT_MODEL         optional, overrides config.DEFAULT_MODEL for both CLI and Lambda
     FROM_EMAIL          optional, default: audits@heyupstart.com
     AWS_REGION          optional, default: us-east-1
 """
@@ -26,6 +26,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 # Local modules
+from config import DEFAULT_MODEL
 from crawler import crawl
 from companion import run_seo_audit, run_a11y_audit, crawl_seo_inline, crawl_a11y_inline
 from prompt import generate_report
@@ -97,6 +98,28 @@ def s3_write_report(domain_key: str, report: dict) -> None:
         print(f'[s3] report write failed: {e}', file=sys.stderr)
 
 
+def s3_write_signals(domain_key: str, signals: dict, companion_stats: dict) -> None:
+    """
+    Write the raw crawl signals + companion (SEO/a11y) stats to S3 alongside
+    the report. This is the only record of what the crawler actually saw for
+    a given run -- without it, a report that turns out to contain false
+    claims can't be traced back to "bad crawl data" vs. "model contradicted
+    good crawl data", because the crawl output no longer exists anywhere
+    once the Lambda invocation ends.
+    """
+    try:
+        import boto3
+        s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        s3.put_object(
+            Bucket=AUDIT_BUCKET,
+            Key=f'{domain_key}/signals.json',
+            Body=json.dumps({'signals': signals, 'companion_stats': companion_stats}),
+            ContentType='application/json',
+        )
+    except Exception as e:
+        print(f'[s3] signals write failed (non-fatal): {e}', file=sys.stderr)
+
+
 def s3_delete_cached_audit(domain_key: str) -> None:
     """
     Delete any existing status.json / report.json / report.pdf for a domain.
@@ -108,7 +131,7 @@ def s3_delete_cached_audit(domain_key: str) -> None:
     try:
         import boto3
         s3 = boto3.client('s3', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-        for key in ('status.json', 'report.json', 'report.pdf'):
+        for key in ('status.json', 'report.json', 'report.pdf', 'signals.json'):
             try:
                 s3.delete_object(Bucket=AUDIT_BUCKET, Key=f'{domain_key}/{key}')
             except Exception as e:
@@ -506,7 +529,7 @@ def run_audit(url: str, output_dir: str = '/tmp', on_status=None) -> dict:
     output_path.mkdir(parents=True, exist_ok=True)
 
     pdf_path = str(output_path / f'{stem}_donor_readiness.pdf')
-    model = os.environ.get('AUDIT_MODEL', 'claude-sonnet-4-6')
+    model = DEFAULT_MODEL
 
     print(f'[audit] Starting: {url}  model={model}', file=sys.stderr)
 
@@ -552,7 +575,13 @@ def run_audit(url: str, output_dir: str = '/tmp', on_status=None) -> dict:
     print(f'[3/3] Done in {time.time()-t2:.1f}s', file=sys.stderr)
 
     print(f'[audit] Complete. PDF: {final_path}', file=sys.stderr)
-    return {'pdf_path': final_path, 'report': report, 'signals': signals, 'domain_key': domain_key}
+    return {
+        'pdf_path': final_path,
+        'report': report,
+        'signals': signals,
+        'companion_stats': companion_stats,
+        'domain_key': domain_key,
+    }
 
 
 # ── Lambda handler ─────────────────────────────────────────────────────────────
@@ -715,9 +744,13 @@ def lambda_handler(event, context):
         )
         org_name = result['report'].get('org_name', 'Your Organization')
 
-        # Write report + PDF to S3, then mark complete
+        # Write report + PDF + raw signals to S3, then mark complete.
+        # signals.json is the debugging trail: if a future report contains a
+        # false claim, this is what lets us check whether the crawler saw the
+        # right thing or whether Claude contradicted good data.
         s3_write_report(domain_key, result['report'])
         s3_write_pdf(domain_key, result['pdf_path'])
+        s3_write_signals(domain_key, result['signals'], result.get('companion_stats', {}))
         s3_write_status(domain_key, 'complete')
 
         send_report_email(email, org_name, result['pdf_path'], first_name=first_name)
@@ -775,7 +808,7 @@ def main():
     else:
         pdf_path = str(reports_dir / f'{stem}_donor_readiness.pdf')
 
-    model = os.environ.get('AUDIT_MODEL', 'claude-opus-4-6')
+    model = DEFAULT_MODEL
 
     print(f'\n{"="*60}', file=sys.stderr)
     print(f'  Donor Readiness Audit', file=sys.stderr)
