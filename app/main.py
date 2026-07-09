@@ -123,10 +123,10 @@ def s3_write_signals(domain_key: str, signals: dict, companion_stats: dict) -> N
 def s3_delete_cached_audit(domain_key: str) -> None:
     """
     Delete any existing status.json / report.json / report.pdf for a domain.
-    Used by the forceRefresh path so a re-submitted audit can't fall through
-    to a stale permalink-cached result — the GET status endpoint has no
-    expiration on its own, so without this, a domain that already completed
-    once will serve the same cached report forever.
+    Called unconditionally at the top of every POST so a re-submitted audit
+    can't fall through to a stale permalink-cached result — the GET status
+    endpoint has no expiration on its own, so without this, a domain that
+    already completed once would serve the same cached report forever.
     """
     try:
         import boto3
@@ -700,10 +700,6 @@ def lambda_handler(event, context):
         first_name = (body.get('firstName')  or '').strip()
         last_name  = (body.get('lastName')   or '').strip()
         role       = (body.get('role')       or '').strip()
-        # Accept either casing — curl/Postman testing tends to use snake_case,
-        # the website's own JS is more likely to send camelCase.
-        force_refresh = bool(body.get('forceRefresh') or body.get('force_refresh'))
-
         if not url:
             return {'statusCode': 400, 'body': json.dumps({'error': 'url is required'})}
         if not email:
@@ -711,14 +707,17 @@ def lambda_handler(event, context):
 
         domain_key = _normalize_domain(url)
 
-        # forceRefresh: wipe any cached status/report for this domain before
-        # running. Without this, a domain that already completed once keeps
-        # resolving to the same permalink-cached S3 object forever — useful
-        # for real visitors, a dead end for verifying an accuracy fix against
-        # a site that's already been audited.
-        if force_refresh:
-            print(json.dumps({'event': 'AUDIT_FORCE_REFRESH', 'url': url, 'domain': domain_key}))
-            s3_delete_cached_audit(domain_key)
+        # Every POST is a real "run this audit" request, not a request to view
+        # an existing one — that's what GET ?domain= is for. Wipe any cached
+        # status/report for this domain before running so a POST always
+        # produces a fresh crawl+report. Previously this only happened when
+        # the caller explicitly sent forceRefresh, which the live intake form
+        # never does — so resubmitting the same URL on heyupstart.com/audits/
+        # silently served the old permalink-cached report in ~2s instead of
+        # actually re-running, which is exactly the bug this was meant to fix
+        # and didn't, since nothing in the real flow ever set that flag.
+        print(json.dumps({'event': 'AUDIT_FORCE_REFRESH', 'url': url, 'domain': domain_key}))
+        s3_delete_cached_audit(domain_key)
 
         # DNS pre-check — fail fast before spending time crawling
         dns_error = _check_domain_reachable(url)
